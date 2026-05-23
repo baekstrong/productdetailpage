@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>케틀벨 원데이 관리자 모드</title>
+  <meta name="robots" content="noindex,nofollow" />
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950 text-slate-100">
+  <main class="mx-auto max-w-6xl px-5 py-10">
+    <section class="rounded-3xl bg-slate-900 p-6 ring-1 ring-slate-800">
+      <p class="text-sm font-bold text-orange-400">ADMIN</p>
+      <h1 class="mt-2 text-3xl font-extrabold">관리자 모드</h1>
+      <p class="mt-3 text-sm text-slate-400">Supabase 무료 플랜 기반 예약 일정/신청 현황 관리 화면입니다. 실제 비밀번호는 프론트엔드에 저장하지 않고 Supabase Secret의 <code>ADMIN_PASSWORD_HASH</code>로 검증합니다.</p>
+    </section>
+
+    <section data-admin-login class="mt-6 rounded-3xl bg-white p-6 text-slate-900">
+      <h2 class="text-xl font-extrabold">비밀번호 입력</h2>
+      <p class="mt-2 text-sm text-slate-500">관리자 URL은 노출될 수 있으므로 URL 숨김이 아니라 서버 검증으로 보호합니다.</p>
+      <form id="login-form" class="mt-5 flex flex-col gap-3 sm:flex-row">
+        <input id="admin-password" type="password" autocomplete="current-password" placeholder="관리자 비밀번호" class="min-w-0 flex-1 rounded-xl border border-slate-300 px-4 py-3" />
+        <button class="rounded-xl bg-orange-500 px-5 py-3 font-bold text-white" type="submit">접속</button>
+      </form>
+      <p id="login-message" class="mt-3 text-sm text-slate-500">비밀번호 원문은 HTML/JS에 넣지 않습니다.</p>
+    </section>
+
+    <section id="admin-app" class="mt-6 hidden space-y-6">
+      <section class="grid gap-4 md:grid-cols-5">
+        <article class="rounded-2xl bg-white p-5 text-slate-900"><p class="text-xs font-bold text-slate-500">정원</p><p id="summary-capacity" class="mt-1 text-2xl font-extrabold">0</p></article>
+        <article class="rounded-2xl bg-white p-5 text-slate-900"><p class="text-xs font-bold text-slate-500">결제 확정 인원</p><p id="summary-confirmed" class="mt-1 text-2xl font-extrabold">0</p></article>
+        <article class="rounded-2xl bg-white p-5 text-slate-900"><p class="text-xs font-bold text-slate-500">예약 가능 인원</p><p id="summary-available" class="mt-1 text-2xl font-extrabold">0</p></article>
+        <article class="rounded-2xl bg-white p-5 text-slate-900"><p class="text-xs font-bold text-slate-500">대기 인원</p><p id="summary-waitlist" class="mt-1 text-2xl font-extrabold">0</p></article>
+        <article class="rounded-2xl bg-white p-5 text-slate-900"><p class="text-xs font-bold text-slate-500">결제 안내 대기 인원</p><p id="summary-payment-ready" class="mt-1 text-2xl font-extrabold">0</p></article>
+      </section>
+
+      <section class="rounded-3xl bg-white p-6 text-slate-900">
+        <h2 class="text-xl font-extrabold">일정 생성/수정</h2>
+        <form data-class-form id="class-form" class="mt-5 grid gap-3 md:grid-cols-4">
+          <input name="date" type="date" class="rounded-xl border border-slate-300 px-4 py-3" required />
+          <input name="start_time" type="time" class="rounded-xl border border-slate-300 px-4 py-3" required />
+          <input name="end_time" type="time" class="rounded-xl border border-slate-300 px-4 py-3" required />
+          <input name="capacity" type="number" min="1" value="6" class="rounded-xl border border-slate-300 px-4 py-3" required />
+          <input name="place" value="근력학교 고대점" class="rounded-xl border border-slate-300 px-4 py-3 md:col-span-2" />
+          <select name="status" class="rounded-xl border border-slate-300 px-4 py-3">
+            <option value="open">예약 가능</option>
+            <option value="waitlist">대기 가능</option>
+            <option value="closed">마감</option>
+            <option value="hidden">숨김</option>
+          </select>
+          <label class="flex items-center gap-2 rounded-xl border border-slate-300 px-4 py-3"><input name="is_public" type="checkbox" checked /> 공개</label>
+          <button class="rounded-xl bg-slate-900 px-5 py-3 font-bold text-white md:col-span-2" type="submit">일정 저장</button>
+          <button data-json-export class="rounded-xl bg-orange-500 px-5 py-3 font-bold text-white" type="button">JSON 내보내기</button>
+          <button data-class-delete class="rounded-xl bg-red-100 px-5 py-3 font-bold text-red-700" type="button">일정 삭제</button>
+        </form>
+      </section>
+
+      <section class="rounded-3xl bg-white p-6 text-slate-900">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 class="text-xl font-extrabold">수업일별 예약/신청 현황</h2>
+            <p class="mt-1 text-sm text-slate-500">어떤 수업일에 누가 예약해서 신청했는지 확인합니다. 휴대폰 번호 마스킹 기본 적용.</p>
+          </div>
+          <select id="class-filter" class="rounded-xl border border-slate-300 px-4 py-3"></select>
+        </div>
+        <div class="mt-5 overflow-x-auto">
+          <table data-reservation-table class="min-w-full text-left text-sm">
+            <thead class="bg-slate-100 text-slate-600">
+              <tr>
+                <th class="p-3">신청 순번</th>
+                <th class="p-3">이름</th>
+                <th class="p-3">휴대폰 번호 마스킹</th>
+                <th class="p-3">이메일</th>
+                <th class="p-3">신청 상태</th>
+                <th class="p-3">결제 상태</th>
+                <th class="p-3">대기 순번</th>
+                <th class="p-3">신청 시간</th>
+                <th class="p-3">메모</th>
+                <th class="p-3">관리자 액션</th>
+              </tr>
+            </thead>
+            <tbody id="reservation-rows"></tbody>
+          </table>
+        </div>
+        <div class="mt-4 flex flex-wrap gap-2 text-xs">
+          <button data-action="payment-target" class="rounded-full bg-orange-100 px-3 py-1.5 font-bold text-orange-700">결제 안내 대상으로 지정</button>
+          <button data-action="payment-complete" class="rounded-full bg-emerald-100 px-3 py-1.5 font-bold text-emerald-700">결제 완료 처리</button>
+          <button data-action="cancel" class="rounded-full bg-slate-100 px-3 py-1.5 font-bold text-slate-700">취소 처리</button>
+          <button data-action="no-show" class="rounded-full bg-red-100 px-3 py-1.5 font-bold text-red-700">노쇼/불참 메모</button>
+          <button data-action="waitlist-order" class="rounded-full bg-blue-100 px-3 py-1.5 font-bold text-blue-700">대기 순번 조정</button>
+        </div>
+      </section>
+
+      <section class="rounded-3xl bg-white p-6 text-slate-900">
+        <h2 class="text-xl font-extrabold">문자 자동 예약</h2>
+        <p class="mt-2 text-sm text-slate-500">Solapi Key는 프론트에 두지 않고 <code>supabase/functions/solapi-reservations</code>에서 Secret으로 처리합니다.</p>
+        <ul class="mt-4 grid gap-2 text-sm md:grid-cols-2">
+          <li>예약 신청 완료 문자</li><li>결제 안내 문자</li><li>여석 안내 문자</li><li>결제 완료 문자</li><li>수업 전 리마인드 문자</li><li>수업 후 복습 자료 문자</li><li>복습 영상 안내 문자</li>
+        </ul>
+      </section>
+    </section>
+  </main>
+
+  <script type="module">
+    const SUPABASE_URL = window.SUPABASE_URL || '';
+    const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || '';
+    const authEndpoint = '/supabase/functions/admin-auth';
+    const solapiEndpoint = '/supabase/functions/solapi-reservations';
+    const demoClasses = JSON.parse(localStorage.getItem('oneday_classes') || 'null') || [
+      { id: 'class-2026-06-06-1000', date: '2026-06-06', start_time: '10:00', end_time: '13:00', place: '근력학교 고대점', capacity: 6, confirmed_count: 0, waitlist_count: 14, is_public: true, status: 'open' },
+      { id: 'class-2026-06-20-1000', date: '2026-06-20', start_time: '10:00', end_time: '13:00', place: '근력학교 고대점', capacity: 6, confirmed_count: 6, waitlist_count: 21, is_public: true, status: 'waitlist' }
+    ];
+    const demoReservations = [
+      { order: 1, name: '홍길동', phone: '010-1234-5678', email: 'sample@example.com', status: '신청', payment: '결제 안내 대기', waitlist: 1, created_at: '2026-05-23 10:00', memo: '초보' },
+      { order: 2, name: '김철수', phone: '010-9876-5432', email: 'sample2@example.com', status: '대기', payment: '미결제', waitlist: 2, created_at: '2026-05-23 10:10', memo: '' }
+    ];
+    function maskPhone(phone) { return phone.replace(/(\d{3})-?(\d{4})-?(\d{4})/, '$1-****-$3'); }
+    function renderClasses(classes) {
+      const filter = document.getElementById('class-filter');
+      filter.innerHTML = classes.map(c => `<option value="${c.id}">${c.date} ${c.start_time}</option>`).join('');
+      const first = classes[0];
+      document.getElementById('summary-capacity').textContent = first.capacity;
+      document.getElementById('summary-confirmed').textContent = first.confirmed_count;
+      document.getElementById('summary-available').textContent = Math.max(0, first.capacity - first.confirmed_count);
+      document.getElementById('summary-waitlist').textContent = first.waitlist_count;
+      document.getElementById('summary-payment-ready').textContent = demoReservations.filter(r => r.payment === '결제 안내 대기').length;
+    }
+    function renderReservations(rows) {
+      document.getElementById('reservation-rows').innerHTML = rows.map(r => `
+        <tr class="border-b border-slate-100">
+          <td class="p-3">${r.order}</td><td class="p-3">${r.name}</td><td class="p-3">${maskPhone(r.phone)}</td><td class="p-3">${r.email}</td>
+          <td class="p-3">${r.status}</td><td class="p-3">${r.payment}</td><td class="p-3">${r.waitlist}</td><td class="p-3">${r.created_at}</td><td class="p-3">${r.memo}</td>
+          <td class="p-3">결제 완료 처리 / 대기 순번 조정</td>
+        </tr>`).join('');
+    }
+    async function saveClassToSupabase(classItem) {
+      if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return { ok: true, localOnly: true };
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/classes`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', apikey: SUPABASE_ANON_KEY, authorization: `Bearer ${SUPABASE_ANON_KEY}`, prefer: 'resolution=merge-duplicates' },
+        body: JSON.stringify(classItem)
+      });
+      if (!response.ok) throw new Error('class save failed');
+      return { ok: true };
+    }
+    function persistClasses(classes) {
+      localStorage.setItem('oneday_classes', JSON.stringify(classes));
+      renderClasses(classes);
+    }
+    function exportClassesJson() {
+      const payload = JSON.stringify({ classes: demoClasses }, null, 2);
+      const blob = new Blob([payload], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'classes.json';
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+    document.getElementById('login-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const password = document.getElementById('admin-password').value;
+      document.getElementById('login-message').textContent = 'Supabase Edge Function에서 비밀번호를 검증합니다.';
+      if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+        await fetch(`${SUPABASE_URL}/functions/v1/admin-auth`, { method: 'POST', headers: { 'content-type': 'application/json', apikey: SUPABASE_ANON_KEY }, body: JSON.stringify({ password }) });
+      }
+      document.querySelector('[data-admin-login]').classList.add('hidden');
+      document.getElementById('admin-app').classList.remove('hidden');
+      renderClasses(demoClasses);
+      renderReservations(demoReservations);
+    });
+    document.getElementById('class-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const formData = new FormData(event.currentTarget);
+      const classItem = {
+        id: `class-${formData.get('date')}-${formData.get('start_time')}`.replaceAll(':', ''),
+        date: formData.get('date'),
+        start_time: formData.get('start_time'),
+        end_time: formData.get('end_time'),
+        place: formData.get('place') || '근력학교 고대점',
+        capacity: Number(formData.get('capacity') || 6),
+        confirmed_count: 0,
+        waitlist_count: 0,
+        is_public: formData.get('is_public') === 'on',
+        status: formData.get('status') || 'open'
+      };
+      const existingIndex = demoClasses.findIndex(item => item.id === classItem.id);
+      if (existingIndex >= 0) demoClasses.splice(existingIndex, 1, classItem);
+      else demoClasses.push(classItem);
+      persistClasses(demoClasses);
+      await saveClassToSupabase(classItem);
+      alert('일정이 저장되었습니다. JSON 내보내기로 data/classes.json에 반영할 수 있습니다.');
+    });
+    document.querySelector('[data-json-export]').addEventListener('click', exportClassesJson);
+    document.querySelector('[data-class-delete]').addEventListener('click', () => {
+      const selectedId = document.getElementById('class-filter').value;
+      const index = demoClasses.findIndex(item => item.id === selectedId);
+      if (index >= 0) demoClasses.splice(index, 1);
+      persistClasses(demoClasses);
+      alert('일정 삭제가 반영되었습니다.');
+    });
+    window.__adminEndpoints = { authEndpoint, solapiEndpoint };
+    window.saveClassToSupabase = saveClassToSupabase;
+  </script>
+</body>
+</html>

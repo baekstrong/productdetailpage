@@ -1,0 +1,52 @@
+{
+  "classes": [
+    {
+      "id": "class-2026-06-06-1000",
+      "date": "2026-06-06",
+      "start_time": "10:00",
+      "end_time": "13:00",
+      "place": "근력학교 고대점",
+      "capacity": 6,
+      "confirmed_count": 0,
+      "waitlist_count": 14,
+      "is_public": true,
+      "status": "open"
+    },
+    {
+      "id": "class-2026-06-20-1000",
+      "date": "2026-06-20",
+      "start_time": "10:00",
+      "end_time": "13:00",
+      "place": "근력학교 고대점",
+      "capacity": 6,
+      "confirmed_count": 6,
+      "waitlist_count": 21,
+      "is_public": true,
+      "status": "waitlist"
+    },
+    {
+      "id": "class-2026-07-04-1000",
+      "date": "2026-07-04",
+      "start_time": "10:00",
+      "end_time": "13:00",
+      "place": "근력학교 고대점",
+      "capacity": 6,
+      "confirmed_count": 0,
+      "waitlist_count": 7,
+      "is_public": true,
+      "status": "open"
+    },
+    {
+      "id": "class-2026-07-18-1000",
+      "date": "2026-07-18",
+      "start_time": "10:00",
+      "end_time": "13:00",
+      "place": "근력학교 고대점",
+      "capacity": 6,
+      "confirmed_count": 0,
+      "waitlist_count": 3,
+      "is_public": true,
+      "status": "open"
+    }
+  ]
+}

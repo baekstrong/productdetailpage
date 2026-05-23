@@ -1,3 +1,4 @@
+import json
 import unittest
 from pathlib import Path
 
@@ -30,6 +31,17 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("예약 가능 일정", html)
         self.assertIn("calendar-grid", html)
         self.assertIn("data-reservation-date", html)
+        self.assertIn("data/classes.json", html)
+        self.assertIn("fetch", html)
+        self.assertIn("renderScheduleFromClasses", html)
+        self.assertIn("예약 신청하기", html)
+        self.assertIn("data-public-calendar", html)
+        self.assertIn("submitReservationToSupabase", html)
+        self.assertIn("name=\"applicant_name\"", html)
+        self.assertIn("name=\"phone\"", html)
+        self.assertIn("name=\"email\"", html)
+        self.assertIn("name=\"kettlebell_experience\"", html)
+        self.assertIn("name=\"reason\"", html)
         self.assertIn("예약 가능 인원", html)
         self.assertIn("대기 인원", html)
         self.assertIn("날짜를 선택하면 예약 신청 화면으로 이동합니다", html)
@@ -80,9 +92,10 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("서버/DB 후보 검토", plan)
         self.assertIn("Supabase", plan)
         self.assertIn("관리자 비밀번호 정책", plan)
-        self.assertIn("8156", plan)
-        self.assertIn("HTML/JS에 직접 박아 넣지 않는다", plan)
+        self.assertIn("초기 비밀번호는 별도 Secret으로 관리", plan)
+        self.assertIn("HTML/JS와 저장소에 직접 박아 넣지 않는다", plan)
         self.assertIn("ADMIN_PASSWORD_HASH", plan)
+        self.assertNotIn("8156", plan)
         self.assertIn("Supabase 무료 플랜", plan)
         self.assertIn("서버 선택 최종안", plan)
         self.assertIn("관리자 상황표", plan)
@@ -120,6 +133,61 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("케틀벨, 혼자 시작하기", html)
         self.assertIn("3시간", html)
         self.assertIn("9만원", html)
+
+    def test_admin_page_implements_supabase_protected_schedule_and_status_table(self):
+        html = read_page("admin.html")
+
+        self.assertIn("관리자 모드", html)
+        self.assertIn("비밀번호", html)
+        self.assertIn("ADMIN_PASSWORD_HASH", html)
+        self.assertIn("Supabase", html)
+        self.assertIn("data-admin-login", html)
+        self.assertIn("data-class-form", html)
+        self.assertIn("data-reservation-table", html)
+        self.assertIn("수업일별 예약/신청 현황", html)
+        self.assertIn("휴대폰 번호 마스킹", html)
+        self.assertIn("결제 완료 처리", html)
+        self.assertIn("대기 순번 조정", html)
+        self.assertIn("supabase/functions/admin-auth", html)
+        self.assertIn("supabase/functions/solapi-reservations", html)
+        self.assertIn("localStorage", html)
+        self.assertIn("data-json-export", html)
+        self.assertIn("JSON 내보내기", html)
+        self.assertIn("일정 삭제", html)
+        self.assertIn("saveClassToSupabase", html)
+        self.assertNotIn("8156", html)
+        self.assertNotIn("service_role", html)
+
+    def test_classes_json_exists_for_public_calendar(self):
+        data = json.loads(read_page("data/classes.json"))
+
+        self.assertIn("classes", data)
+        self.assertGreaterEqual(len(data["classes"]), 3)
+        first = data["classes"][0]
+        self.assertIn("id", first)
+        self.assertIn("date", first)
+        self.assertIn("capacity", first)
+        self.assertIn("confirmed_count", first)
+        self.assertIn("waitlist_count", first)
+        self.assertIn("is_public", first)
+
+    def test_supabase_schema_and_edge_functions_are_documented(self):
+        schema = read_page("supabase/schema.sql")
+        auth = read_page("supabase/functions/admin-auth/index.ts")
+        solapi = read_page("supabase/functions/solapi-reservations/index.ts")
+
+        self.assertIn("create table if not exists public.classes", schema)
+        self.assertIn("create table if not exists public.reservations", schema)
+        self.assertIn("alter table public.classes enable row level security", schema)
+        self.assertIn("alter table public.reservations enable row level security", schema)
+        self.assertIn("ADMIN_PASSWORD_HASH", auth)
+        self.assertIn("crypto.subtle.digest", auth)
+        self.assertIn("SOLAPI_API_KEY", solapi)
+        self.assertIn("SOLAPI_API_SECRET", solapi)
+        self.assertIn("예약 신청 완료 문자", solapi)
+        self.assertIn("수업 전 리마인드 문자", solapi)
+        self.assertIn("복습 영상은 백관장 수동 발송", solapi)
+        self.assertNotIn("review_video", solapi)
 
 
 if __name__ == "__main__":
