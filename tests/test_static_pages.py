@@ -75,6 +75,14 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("결제 안내 문자", plan)
         self.assertIn("수업 전 리마인드 문자", plan)
         self.assertIn("수업 후 복습 자료 문자", plan)
+        self.assertIn("보안 전제", plan)
+        self.assertIn("개인정보가 서버에 저장", plan)
+        self.assertIn("서버/DB 후보 검토", plan)
+        self.assertIn("Supabase", plan)
+        self.assertIn("관리자 비밀번호 정책", plan)
+        self.assertIn("8156", plan)
+        self.assertIn("HTML/JS에 직접 박아 넣지 않는다", plan)
+        self.assertIn("ADMIN_PASSWORD_HASH", plan)
 
     def test_reservation_guidance_uses_customer_language(self):
         html = read_page("index.html")
