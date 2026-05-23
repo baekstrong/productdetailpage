@@ -141,6 +141,7 @@
       </div>
     </section>
 
+
     <!-- ============================================== -->
     <!-- 2. 예약 가능 일정                                -->
     <!-- ============================================== -->
@@ -158,74 +159,187 @@
         <div class="mt-10 rounded-3xl bg-cream-50 ring-1 ring-ink-200/70 p-4 sm:p-6 shadow-soft">
           <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
             <div>
-              <p class="text-sm font-bold text-brand-600">2026년 6월</p>
+              <p id="month-title" class="text-sm font-bold text-brand-600">2026년 6월</p>
               <p class="mt-1 text-sm text-ink-500">날짜를 선택하면 예약 신청 화면으로 이동합니다</p>
             </div>
-            <div class="flex gap-2 text-xs text-ink-500">
-              <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-brand-500"></span>예약 가능</span>
-              <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-ink-300"></span>대기 가능</span>
+            <div class="flex flex-wrap gap-2 text-xs">
+              <button type="button" data-month-prev class="rounded-full bg-white px-3 py-1.5 font-bold text-ink-700 ring-1 ring-ink-200 hover:bg-ink-100">이전달</button>
+              <button type="button" data-month-goto="2026-06" class="rounded-full bg-brand-500 px-3 py-1.5 font-bold text-white">이번달</button>
+              <button type="button" data-month-goto="2026-07" class="rounded-full bg-white px-3 py-1.5 font-bold text-ink-700 ring-1 ring-ink-200 hover:bg-ink-100">다음달</button>
+              <button type="button" data-month-goto="2026-08" class="rounded-full bg-white px-3 py-1.5 font-bold text-ink-700 ring-1 ring-ink-200 hover:bg-ink-100">다다음달</button>
+              <button type="button" data-month-next class="rounded-full bg-white px-3 py-1.5 font-bold text-ink-700 ring-1 ring-ink-200 hover:bg-ink-100">다음 ›</button>
             </div>
           </div>
-
-          <div class="calendar-grid mt-6 text-center text-xs font-bold text-ink-400">
-            <div>일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div>토</div>
+          <div class="mt-4 flex gap-2 text-xs text-ink-500">
+            <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-brand-500"></span>예약 가능</span>
+            <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-ink-300"></span>대기 가능</span>
           </div>
 
-          <div class="calendar-grid mt-2">
-            <div class="calendar-day rounded-2xl bg-white/50 ring-1 ring-ink-200/50 p-2 text-ink-300">31</div>
-            <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 p-2 text-ink-400">1</div>
-            <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 p-2 text-ink-400">2</div>
-            <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 p-2 text-ink-400">3</div>
-            <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 p-2 text-ink-400">4</div>
-            <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 p-2 text-ink-400">5</div>
-            <a href="#reservation-form" data-reservation-date="2026-06-06 10:00" class="calendar-day rounded-2xl bg-brand-50 ring-2 ring-brand-500 p-2 text-left hover:bg-brand-100 transition">
-              <span class="block text-sm font-extrabold text-ink-900">6</span>
-              <span class="mt-2 block text-xs font-bold text-brand-700">10:00</span>
-              <span class="mt-2 block text-[11px] text-ink-700">예약 가능 인원 6명</span>
-              <span class="block text-[11px] text-ink-500">대기 인원 14명</span>
-            </a>
-
-            <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 p-2 text-ink-400">7</div>
-            <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 p-2 text-ink-400">8</div>
-            <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 p-2 text-ink-400">9</div>
-            <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 p-2 text-ink-400">10</div>
-            <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 p-2 text-ink-400">11</div>
-            <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 p-2 text-ink-400">12</div>
-            <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 p-2 text-ink-400">13</div>
-
-            <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 p-2 text-ink-400">14</div>
-            <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 p-2 text-ink-400">15</div>
-            <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 p-2 text-ink-400">16</div>
-            <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 p-2 text-ink-400">17</div>
-            <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 p-2 text-ink-400">18</div>
-            <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 p-2 text-ink-400">19</div>
-            <a href="#reservation-form" data-reservation-date="2026-06-20 10:00" class="calendar-day rounded-2xl bg-white ring-2 ring-ink-300 p-2 text-left hover:bg-ink-100 transition">
-              <span class="block text-sm font-extrabold text-ink-900">20</span>
-              <span class="mt-2 block text-xs font-bold text-ink-700">10:00</span>
-              <span class="mt-2 block text-[11px] text-ink-700">예약 가능 인원 0명</span>
-              <span class="block text-[11px] text-ink-500">대기 인원 21명</span>
-            </a>
-
-            <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 p-2 text-ink-400">21</div>
-            <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 p-2 text-ink-400">22</div>
-            <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 p-2 text-ink-400">23</div>
-            <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 p-2 text-ink-400">24</div>
-            <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 p-2 text-ink-400">25</div>
-            <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 p-2 text-ink-400">26</div>
-            <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 p-2 text-ink-400">27</div>
-
-            <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 p-2 text-ink-400">28</div>
-            <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 p-2 text-ink-400">29</div>
-            <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 p-2 text-ink-400">30</div>
-            <div class="calendar-day rounded-2xl bg-white/50 ring-1 ring-ink-200/50 p-2 text-ink-300">1</div>
-            <div class="calendar-day rounded-2xl bg-white/50 ring-1 ring-ink-200/50 p-2 text-ink-300">2</div>
-            <div class="calendar-day rounded-2xl bg-white/50 ring-1 ring-ink-200/50 p-2 text-ink-300">3</div>
-            <a href="#reservation-form" data-reservation-date="2026-07-04 10:00" class="calendar-day rounded-2xl bg-brand-50 ring-2 ring-brand-500 p-2 text-left hover:bg-brand-100 transition">
-              <span class="block text-sm font-extrabold text-ink-900">4</span>
-              <span class="mt-2 block text-xs font-bold text-brand-700">10:00</span>
-              <span class="mt-2 block text-[11px] text-ink-700">예약 가능 인원 6명</span>
-              <span class="block text-[11px] text-ink-500">대기 인원 7명</span>
-            </a>
+          <div data-month-panel="2026-06" class="month-panel">
+            <p class="mt-6 text-sm font-bold text-brand-600">2026년 6월</p>
+            <div class="calendar-grid mt-4 text-center text-xs font-bold text-ink-400">
+              <div>일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div>토</div>
+            </div>
+            <div class="calendar-grid mt-2">
+              <div class="calendar-day rounded-2xl bg-white/50 ring-1 ring-ink-200/50 text-ink-300 p-2">31</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">1</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">2</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">3</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">4</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">5</div>
+              <a href="#reservation-form" data-reservation-date="2026-06-06 10:00" class="calendar-day rounded-2xl bg-brand-50 ring-2 ring-brand-500 hover:bg-brand-100 p-2 text-left transition">
+                <span class="block text-sm font-extrabold text-ink-900">6</span>
+                <span class="mt-2 block text-xs font-bold text-brand-700">10:00</span>
+                <span class="mt-2 block text-[11px] text-ink-700">예약 가능 인원 6명</span>
+                <span class="block text-[11px] text-ink-500">대기 인원 14명</span>
+              </a>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">7</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">8</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">9</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">10</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">11</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">12</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">13</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">14</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">15</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">16</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">17</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">18</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">19</div>
+              <a href="#reservation-form" data-reservation-date="2026-06-20 10:00" class="calendar-day rounded-2xl bg-white ring-2 ring-ink-300 hover:bg-ink-100 p-2 text-left transition">
+                <span class="block text-sm font-extrabold text-ink-900">20</span>
+                <span class="mt-2 block text-xs font-bold text-ink-700">10:00</span>
+                <span class="mt-2 block text-[11px] text-ink-700">예약 가능 인원 0명</span>
+                <span class="block text-[11px] text-ink-500">대기 인원 21명</span>
+              </a>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">21</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">22</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">23</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">24</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">25</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">26</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">27</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">28</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">29</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">30</div>
+              <div class="calendar-day rounded-2xl bg-white/50 ring-1 ring-ink-200/50 text-ink-300 p-2">1</div>
+              <div class="calendar-day rounded-2xl bg-white/50 ring-1 ring-ink-200/50 text-ink-300 p-2">2</div>
+              <div class="calendar-day rounded-2xl bg-white/50 ring-1 ring-ink-200/50 text-ink-300 p-2">3</div>
+              <div class="calendar-day rounded-2xl bg-white/50 ring-1 ring-ink-200/50 text-ink-300 p-2">4</div>
+            </div>
+          </div>
+          <div data-month-panel="2026-07" class="month-panel hidden">
+            <p class="mt-6 text-sm font-bold text-brand-600">2026년 7월</p>
+            <div class="calendar-grid mt-4 text-center text-xs font-bold text-ink-400">
+              <div>일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div>토</div>
+            </div>
+            <div class="calendar-grid mt-2">
+              <div class="calendar-day rounded-2xl bg-white/50 ring-1 ring-ink-200/50 text-ink-300 p-2">28</div>
+              <div class="calendar-day rounded-2xl bg-white/50 ring-1 ring-ink-200/50 text-ink-300 p-2">29</div>
+              <div class="calendar-day rounded-2xl bg-white/50 ring-1 ring-ink-200/50 text-ink-300 p-2">30</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">1</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">2</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">3</div>
+              <a href="#reservation-form" data-reservation-date="2026-07-04 10:00" class="calendar-day rounded-2xl bg-brand-50 ring-2 ring-brand-500 hover:bg-brand-100 p-2 text-left transition">
+                <span class="block text-sm font-extrabold text-ink-900">4</span>
+                <span class="mt-2 block text-xs font-bold text-brand-700">10:00</span>
+                <span class="mt-2 block text-[11px] text-ink-700">예약 가능 인원 6명</span>
+                <span class="block text-[11px] text-ink-500">대기 인원 7명</span>
+              </a>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">5</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">6</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">7</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">8</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">9</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">10</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">11</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">12</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">13</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">14</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">15</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">16</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">17</div>
+              <a href="#reservation-form" data-reservation-date="2026-07-18 10:00" class="calendar-day rounded-2xl bg-brand-50 ring-2 ring-brand-500 hover:bg-brand-100 p-2 text-left transition">
+                <span class="block text-sm font-extrabold text-ink-900">18</span>
+                <span class="mt-2 block text-xs font-bold text-brand-700">10:00</span>
+                <span class="mt-2 block text-[11px] text-ink-700">예약 가능 인원 6명</span>
+                <span class="block text-[11px] text-ink-500">대기 인원 3명</span>
+              </a>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">19</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">20</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">21</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">22</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">23</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">24</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">25</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">26</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">27</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">28</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">29</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">30</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">31</div>
+              <div class="calendar-day rounded-2xl bg-white/50 ring-1 ring-ink-200/50 text-ink-300 p-2">1</div>
+            </div>
+          </div>
+          <div data-month-panel="2026-08" class="month-panel hidden">
+            <p class="mt-6 text-sm font-bold text-brand-600">2026년 8월</p>
+            <div class="calendar-grid mt-4 text-center text-xs font-bold text-ink-400">
+              <div>일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div>토</div>
+            </div>
+            <div class="calendar-grid mt-2">
+              <div class="calendar-day rounded-2xl bg-white/50 ring-1 ring-ink-200/50 text-ink-300 p-2">26</div>
+              <div class="calendar-day rounded-2xl bg-white/50 ring-1 ring-ink-200/50 text-ink-300 p-2">27</div>
+              <div class="calendar-day rounded-2xl bg-white/50 ring-1 ring-ink-200/50 text-ink-300 p-2">28</div>
+              <div class="calendar-day rounded-2xl bg-white/50 ring-1 ring-ink-200/50 text-ink-300 p-2">29</div>
+              <div class="calendar-day rounded-2xl bg-white/50 ring-1 ring-ink-200/50 text-ink-300 p-2">30</div>
+              <div class="calendar-day rounded-2xl bg-white/50 ring-1 ring-ink-200/50 text-ink-300 p-2">31</div>
+              <a href="#reservation-form" data-reservation-date="2026-08-01 10:00" class="calendar-day rounded-2xl bg-brand-50 ring-2 ring-brand-500 hover:bg-brand-100 p-2 text-left transition">
+                <span class="block text-sm font-extrabold text-ink-900">1</span>
+                <span class="mt-2 block text-xs font-bold text-brand-700">10:00</span>
+                <span class="mt-2 block text-[11px] text-ink-700">예약 가능 인원 6명</span>
+                <span class="block text-[11px] text-ink-500">대기 인원 0명</span>
+              </a>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">2</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">3</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">4</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">5</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">6</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">7</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">8</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">9</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">10</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">11</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">12</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">13</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">14</div>
+              <a href="#reservation-form" data-reservation-date="2026-08-15 10:00" class="calendar-day rounded-2xl bg-brand-50 ring-2 ring-brand-500 hover:bg-brand-100 p-2 text-left transition">
+                <span class="block text-sm font-extrabold text-ink-900">15</span>
+                <span class="mt-2 block text-xs font-bold text-brand-700">10:00</span>
+                <span class="mt-2 block text-[11px] text-ink-700">예약 가능 인원 6명</span>
+                <span class="block text-[11px] text-ink-500">대기 인원 0명</span>
+              </a>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">16</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">17</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">18</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">19</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">20</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">21</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">22</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">23</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">24</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">25</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">26</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">27</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">28</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">29</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">30</div>
+              <div class="calendar-day rounded-2xl bg-white ring-1 ring-ink-200/60 text-ink-400 p-2">31</div>
+              <div class="calendar-day rounded-2xl bg-white/50 ring-1 ring-ink-200/50 text-ink-300 p-2">1</div>
+              <div class="calendar-day rounded-2xl bg-white/50 ring-1 ring-ink-200/50 text-ink-300 p-2">2</div>
+              <div class="calendar-day rounded-2xl bg-white/50 ring-1 ring-ink-200/50 text-ink-300 p-2">3</div>
+              <div class="calendar-day rounded-2xl bg-white/50 ring-1 ring-ink-200/50 text-ink-300 p-2">4</div>
+              <div class="calendar-day rounded-2xl bg-white/50 ring-1 ring-ink-200/50 text-ink-300 p-2">5</div>
+            </div>
           </div>
         </div>
       </div>
@@ -537,8 +651,8 @@
             <dd class="text-right text-ink-900 font-semibold">집에서 케틀벨로 체력 키우고 싶은 분 (초보 환영)</dd>
           </div>
           <div class="py-5 sm:py-6 sm:border-b sm:border-ink-200 flex items-start justify-between gap-6">
-            <dt class="text-sm font-semibold text-ink-500">일정</dt>
-            <dd class="text-right text-ink-900 font-semibold">5월 25일(월) 오후 1~4시 (3시간)</dd>
+            <dt class="text-sm font-semibold text-ink-500">다음 원데이 수업</dt>
+            <dd class="text-right text-ink-900 font-semibold">6월 6일(토) 오전 10시~오후 1시</dd>
           </div>
           <div class="py-5 sm:py-6 sm:border-b sm:border-ink-200 flex items-start justify-between gap-6">
             <dt class="text-sm font-semibold text-ink-500">가격</dt>
@@ -551,6 +665,10 @@
           <div class="py-5 sm:py-6 sm:border-b sm:border-ink-200 flex items-start justify-between gap-6">
             <dt class="text-sm font-semibold text-ink-500">정원</dt>
             <dd class="text-right text-ink-900 font-semibold">6명 (소규모)</dd>
+          </div>
+          <div class="py-5 sm:py-6 sm:border-b sm:border-ink-200 flex items-start justify-between gap-6">
+            <dt class="text-sm font-semibold text-ink-500">현재 신청 현황</dt>
+            <dd class="text-right text-ink-900 font-semibold">예약 가능 인원 6명 · 대기 인원 14명</dd>
           </div>
           <div class="py-5 sm:py-6 flex items-start justify-between gap-6">
             <dt class="text-sm font-semibold text-ink-500">준비물</dt>
@@ -659,19 +777,41 @@
 
 
   <script>
-    document.querySelectorAll('[data-reservation-date]').forEach(function (link) {
-      link.addEventListener('click', function () {
-        var date = link.getAttribute('data-reservation-date');
-        var selected = document.getElementById('selected-date');
-        var mail = document.getElementById('reservation-mail-link');
-        if (selected) selected.textContent = date + ' 수업 예약 신청을 남겨주세요. 신청 후 결제 안내는 문자로 보내드립니다.';
-        if (mail) mail.href = 'mailto:easystrength101@gmail.com?subject=' + encodeURIComponent('케틀벨 원데이 수업 예약 신청') + '&body=' + encodeURIComponent('예약 희망 날짜: ' + date + '
-이름:
-휴대폰 번호:
-케틀벨 경험:
-수업을 듣고 싶은 이유:');
+    (function () {
+      var months = ['2026-06', '2026-07', '2026-08'];
+      var titles = {'2026-06': '2026년 6월', '2026-07': '2026년 7월', '2026-08': '2026년 8월'};
+      var current = 0;
+
+      function showMonth(index) {
+        current = Math.max(0, Math.min(months.length - 1, index));
+        var activeMonth = months[current];
+        document.querySelectorAll('[data-month-panel]').forEach(function (panel) {
+          panel.classList.toggle('hidden', panel.getAttribute('data-month-panel') !== activeMonth);
+        });
+        var title = document.getElementById('month-title');
+        if (title) title.textContent = titles[activeMonth];
+      }
+
+      document.querySelectorAll('[data-month-goto]').forEach(function (button) {
+        button.addEventListener('click', function () {
+          showMonth(months.indexOf(button.getAttribute('data-month-goto')));
+        });
       });
-    });
+      var prev = document.querySelector('[data-month-prev]');
+      var next = document.querySelector('[data-month-next]');
+      if (prev) prev.addEventListener('click', function () { showMonth(current - 1); });
+      if (next) next.addEventListener('click', function () { showMonth(current + 1); });
+
+      document.querySelectorAll('[data-reservation-date]').forEach(function (link) {
+        link.addEventListener('click', function () {
+          var date = link.getAttribute('data-reservation-date');
+          var selected = document.getElementById('selected-date');
+          var mail = document.getElementById('reservation-mail-link');
+          if (selected) selected.textContent = date + ' 수업 예약 신청을 남겨주세요. 신청 후 결제 안내는 문자로 보내드립니다.';
+          if (mail) mail.href = 'mailto:easystrength101@gmail.com?subject=' + encodeURIComponent('케틀벨 원데이 수업 예약 신청') + '&body=' + encodeURIComponent('예약 희망 날짜: ' + date + '\\n이름:\\n휴대폰 번호:\\n케틀벨 경험:\\n수업을 듣고 싶은 이유:');
+        });
+      });
+    })();
   </script>
 </body>
 </html>

@@ -33,12 +33,39 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("예약 가능 인원", html)
         self.assertIn("대기 인원", html)
         self.assertIn("날짜를 선택하면 예약 신청 화면으로 이동합니다", html)
+        self.assertIn("data-month-panel", html)
+        self.assertIn("data-month-prev", html)
+        self.assertIn("data-month-next", html)
+        self.assertIn("2026년 6월", html)
+        self.assertIn("2026년 7월", html)
+        self.assertIn("2026년 8월", html)
+        self.assertIn("다음달", html)
+        self.assertIn("다다음달", html)
         self.assertNotIn("달력형 예약", html)
         self.assertNotIn("Solapi", html)
         self.assertNotIn("SMS FLOW", html)
         self.assertNotIn("운영 예시", html)
         self.assertNotIn("관리자 화면", html)
         self.assertNotIn("백관장", html)
+
+    def test_class_info_shows_next_one_day_class_schedule(self):
+        html = read_page("index.html")
+
+        self.assertIn("다음 원데이 수업", html)
+        self.assertIn("6월 6일(토) 오전 10시~오후 1시", html)
+        self.assertIn("예약 가능 인원 6명", html)
+        self.assertIn("대기 인원 14명", html)
+        self.assertNotIn("5월 25일(월) 오후 1~4시", html)
+
+    def test_admin_schedule_management_plan_exists(self):
+        plan = read_page("docs/admin-schedule-management-plan.md")
+
+        self.assertIn("관리자 예약 일정 설정 기능 개발 계획", plan)
+        self.assertIn("일정 생성", plan)
+        self.assertIn("예약 가능 인원", plan)
+        self.assertIn("대기 인원", plan)
+        self.assertIn("달력 공개/비공개", plan)
+        self.assertIn("1차 구현", plan)
 
     def test_reservation_guidance_uses_customer_language(self):
         html = read_page("index.html")
