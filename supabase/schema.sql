@@ -21,7 +21,7 @@ create table if not exists public.reservations (
   class_id uuid not null references public.classes(id) on delete cascade,
   applicant_name text not null,
   phone text not null,
-  phone_masked text generated always as (regexp_replace(phone, '^(010)([0-9]{4})([0-9]{4})$', '\\1****\\3')) stored,
+  phone_masked text generated always as (regexp_replace(phone, '^(010)([0-9]{4})([0-9]{4})$', '\1****\3')) stored,
   email text,
   kettlebell_experience text,
   reason text,
