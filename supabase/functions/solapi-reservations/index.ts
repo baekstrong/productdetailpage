@@ -27,7 +27,7 @@ const templates: Record<MessageType, string> = {
   'payment 안내': `케틀벨 원데이 수업 결제 안내드립니다
 
 수업 일정: {class_date}
-장소: {place}
+장소: {place}(https://naver.me/xiqDtNuY)
 정원: 6명
 
 아래 링크에서 결제를 완료하시면 자리가 확정됩니다
@@ -39,7 +39,7 @@ const templates: Record<MessageType, string> = {
   seat_opened: `케틀벨 원데이 수업에 여석이 생겨 안내드립니다
 
 수업 일정: {class_date}
-장소: {place}
+장소: {place}(https://naver.me/xiqDtNuY)
 
 아래 링크에서 결제를 완료하시면 자리가 확정됩니다
 {payment_url}
@@ -50,14 +50,14 @@ const templates: Record<MessageType, string> = {
   payment_completed: `케틀벨 원데이 수업 결제가 완료되었습니다
 
 수업 일정: {class_date}
-장소: {place}
+장소: {place}(https://naver.me/xiqDtNuY)
 
 수업 전날 준비물과 장소 안내 문자를 한 번 더 보내드립니다`,
   // 미결제 마감(기한 만료) 안내 문자
   payment_expired: `케틀벨 원데이 수업 예약 안내드립니다
 
 수업 일정: {class_date}
-장소: {place}
+장소: {place}(https://naver.me/xiqDtNuY)
 
 안내드린 시간 내 결제가 확인되지 않아 이번 예약은 취소되었습니다
 자리는 다음 대기자에게 안내됩니다
@@ -67,7 +67,7 @@ const templates: Record<MessageType, string> = {
   class_reminder: `내일 케틀벨 원데이 수업 안내드립니다
 
 수업 일정: {class_date}
-장소: {place}
+장소: {place}(https://naver.me/xiqDtNuY)
 준비물: 편한 복장, 물 또는 텀블러 (신발은 필요 없습니다)
 
 처음 하시는 분 기준으로 천천히 진행합니다`,
