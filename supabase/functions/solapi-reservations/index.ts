@@ -10,6 +10,7 @@ type MessageType =
   | 'payment 안내'
   | 'seat_opened'
   | 'payment_completed'
+  | 'payment_expired'
   | 'class_reminder'
   | 'review_material';
 
@@ -52,6 +53,16 @@ const templates: Record<MessageType, string> = {
 장소: {place}
 
 수업 전날 준비물과 장소 안내 문자를 한 번 더 보내드립니다`,
+  // 미결제 마감(기한 만료) 안내 문자
+  payment_expired: `케틀벨 원데이 수업 예약 안내드립니다
+
+수업 일정: {class_date}
+장소: {place}
+
+안내드린 시간 내 결제가 확인되지 않아 이번 예약은 마감되었습니다
+자리는 다음 대기 순서로 안내됩니다
+
+다시 수강을 원하시면 예약 페이지에서 대기 신청해 주세요`,
   // 수업 전 리마인드 문자
   class_reminder: `내일 케틀벨 원데이 수업 안내드립니다
 

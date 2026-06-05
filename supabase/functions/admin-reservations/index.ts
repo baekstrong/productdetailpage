@@ -275,7 +275,10 @@ async function updateReservation(reservationId: string, updates: Record<string, 
 
   // 상태 전환에 맞춰 안내 문자 자동 발송 (베스트 에포트)
   if (updated) {
-    if (updated.reservation_status === 'payment_target' || updated.payment_status === 'sent') {
+    if (updated.payment_status === 'expired') {
+      const info = await classInfo(String(updated.class_id || ''));
+      await notify(password, updated, 'payment_expired', { class_date: info.label, place: info.place });
+    } else if (updated.reservation_status === 'payment_target' || updated.payment_status === 'sent') {
       const info = await classInfo(String(updated.class_id || ''));
       await notify(password, updated, 'payment 안내', { class_date: info.label, place: info.place, payment_url: PAYMENT_LINK });
     } else if (updated.reservation_status === 'confirmed' || updated.payment_status === 'paid') {
