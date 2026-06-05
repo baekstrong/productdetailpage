@@ -68,17 +68,12 @@ const templates: Record<MessageType, string> = {
 
 수업 일정: {class_date}
 장소: {place}(https://naver.me/xiqDtNuY)
-준비물: 편한 복장, 물 또는 텀블러 (신발은 필요 없습니다)
-
-처음 하시는 분 기준으로 천천히 진행합니다`,
+준비물: 편한 복장, 물 또는 텀블러 (신발은 필요 없습니다)`,
   // 수업 후 복습 자료 문자
   review_material: `오늘 케틀벨 원데이 수업 고생하셨습니다
 
 복습용 교재 링크입니다
 https://www.notion.so/easystrength/Part-2-9910eb46d55f40efad4f986986f5876d?source=copy_link
-
-오늘 배운 내용을 한 번에 다 하려고 하지 마시고
-스윙과 겟업 중 하나만 먼저 복습해보시면 됩니다
 
 복습 영상 링크는 별도로 안내드리겠습니다`,
   // 복습 영상은 백관장 수동 발송
