@@ -124,7 +124,7 @@
         </div>
 
         <div class="mt-4 overflow-x-auto">
-          <table data-reservation-table class="min-w-full text-left text-sm">
+          <table data-reservation-table class="min-w-full text-left text-xs whitespace-nowrap">
             <thead class="bg-slate-100 text-slate-600">
               <tr>
                 <th class="p-3"><input type="checkbox" id="select-all-reservations" aria-label="전체 선택" /></th>
@@ -282,7 +282,7 @@
           <td class="p-3">${escapeHtml(r.phone)}</td>
           <td class="p-3">${escapeHtml(r.email || '')}</td>
           <td class="p-3">${escapeHtml(r.kettlebell_experience || '')}</td>
-          <td class="p-3 max-w-xs whitespace-pre-wrap">${escapeHtml(r.reason || '')}</td>
+          <td class="p-3" title="${escapeHtml(r.reason || '')}">${escapeHtml(r.reason || '')}</td>
           <td class="p-3">${escapeHtml(statusLabels[r.reservation_status] || r.reservation_status)}</td>
           <td class="p-3">${escapeHtml(statusLabels[r.payment_status] || r.payment_status)}</td>
           <td class="p-3">${escapeHtml(r.waitlist_order || '')}</td>
