@@ -135,6 +135,39 @@ async function deleteClass(classId: string) {
   return { ok: true };
 }
 
+async function bulkApprove(classId: string) {
+  if (!classId) throw new Error('classId is required');
+  // 선착순(신청 시간순)으로, 예약 가능 인원(capacity)에서 이미 확정된 인원을 뺀 만큼을
+  // '결제 안내 대상(payment_target)'으로 지정하고, 초과분은 자동으로 '대기(waitlisted)'로 저장한다.
+  const classRows = await supabaseFetch(`classes?id=eq.${encodeURIComponent(classId)}&select=capacity`);
+  const capacity = Array.isArray(classRows) && classRows[0] ? Number(classRows[0].capacity || 0) : 0;
+  const reservations = await supabaseFetch(`reservations?class_id=eq.${encodeURIComponent(classId)}&select=*&order=created_at.asc`);
+  const rows = Array.isArray(reservations) ? reservations : [];
+
+  const confirmedCount = rows.filter((r) => r.reservation_status === 'confirmed' || r.payment_status === 'paid').length;
+  const remaining = Math.max(capacity - confirmedCount, 0);
+  const candidates = rows.filter((r) =>
+    r.reservation_status !== 'confirmed' && r.payment_status !== 'paid'
+    && r.reservation_status !== 'cancelled' && r.reservation_status !== 'no_show'
+  );
+
+  let approved = 0;
+  let waitlisted = 0;
+  for (let i = 0; i < candidates.length; i += 1) {
+    const reservation = candidates[i];
+    const updates = i < remaining
+      ? { reservation_status: 'payment_target', payment_status: 'sent', waitlist_order: null }
+      : { reservation_status: 'waitlisted', waitlist_order: (i - remaining) + 1 };
+    if (i < remaining) approved += 1; else waitlisted += 1;
+    await supabaseFetch(`reservations?id=eq.${encodeURIComponent(reservation.id)}`, {
+      method: 'PATCH',
+      headers: { prefer: 'return=minimal' },
+      body: JSON.stringify({ ...updates, updated_at: new Date().toISOString() }),
+    });
+  }
+  return { ok: true, capacity, remaining, approved, waitlisted };
+}
+
 async function updateReservation(reservationId: string, updates: Record<string, unknown>) {
   const allowedKeys = new Set(['reservation_status', 'payment_status', 'waitlist_order', 'admin_memo']);
   const safeUpdates: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -165,6 +198,7 @@ serve(async (req) => {
     if (action === 'createClass') return jsonResponse(await createClass(body.class || {}));
     if (action === 'updateClass') return jsonResponse(await updateClass(String(body.classId || ''), body.updates || {}));
     if (action === 'deleteClass') return jsonResponse(await deleteClass(String(body.classId || '')));
+    if (action === 'bulkApprove') return jsonResponse(await bulkApprove(String(body.classId || '')));
     if (action === 'updateReservation') {
       return jsonResponse(await updateReservation(String(body.reservationId || ''), body.updates || {}));
     }

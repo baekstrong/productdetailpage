@@ -105,15 +105,20 @@
         <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h2 class="text-xl font-extrabold">수업일별 예약/신청 현황</h2>
-            <p class="mt-1 text-sm text-slate-500">어떤 수업일에 누가 예약해서 신청했는지 확인합니다. 휴대폰 번호 마스킹 없이 관리자 전용으로 표시합니다.</p>
+            <p class="mt-1 text-sm text-slate-500">신청 시간순(선착순)으로 나열합니다. 예약 가능 인원까지는 '선착순', 초과분은 '대기'로 자동 표기됩니다. 휴대폰 번호 마스킹 없이 관리자 전용 표시.</p>
+            <p id="bulk-approve-hint" class="mt-2 text-xs font-bold text-slate-600"></p>
           </div>
-          <p id="reservation-count" class="text-sm font-bold text-orange-600">0명</p>
+          <div class="flex items-center gap-3">
+            <p id="reservation-count" class="text-sm font-bold text-orange-600">0명</p>
+            <button id="bulk-approve-button" type="button" class="rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-bold text-white">선착순 일괄 승인</button>
+          </div>
         </div>
         <div class="mt-5 overflow-x-auto">
           <table data-reservation-table class="min-w-full text-left text-sm">
             <thead class="bg-slate-100 text-slate-600">
               <tr>
                 <th class="p-3">신청 순번</th>
+                <th class="p-3">구분</th>
                 <th class="p-3">이름</th>
                 <th class="p-3">휴대폰 번호 마스킹/원본</th>
                 <th class="p-3">이메일</th>
@@ -222,16 +227,48 @@
       return adminData.reservations.filter((row) => row.class_id === classId);
     }
 
-    function renderReservations(rows) {
+    function groupBadgeHtml(r, liveRank, remaining) {
+      if (r.reservation_status === 'confirmed' || r.payment_status === 'paid') {
+        return '<span class="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700">확정</span>';
+      }
+      if (r.reservation_status === 'cancelled' || r.reservation_status === 'no_show') {
+        return '<span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-500">취소</span>';
+      }
+      const rank = liveRank[r.id];
+      if (rank === undefined) return '';
+      if (rank < remaining) {
+        return `<span class="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-bold text-orange-700">선착순 ${rank + 1}</span>`;
+      }
+      return `<span class="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-700">대기 ${rank - remaining + 1}</span>`;
+    }
+
+    function renderReservations(rows, classItem) {
       const body = document.getElementById('reservation-rows');
       document.getElementById('reservation-count').textContent = `${rows.length}명`;
+      const capacity = classItem ? Number(classItem.capacity || 0) : 0;
+      const confirmed = classItem ? Number(classItem.confirmed_count || 0) : 0;
+      const remaining = Math.max(capacity - confirmed, 0);
+      const hint = document.getElementById('bulk-approve-hint');
+      if (hint) {
+        hint.textContent = classItem
+          ? `예약 가능 인원 ${capacity}명 · 확정 ${confirmed}명 → 선착순 ${remaining}명 결제 안내 대상, 나머지 자동 대기`
+          : '';
+      }
+      const liveRank = {};
+      let rank = -1;
+      rows.forEach((r) => {
+        const isConfirmed = r.reservation_status === 'confirmed' || r.payment_status === 'paid';
+        const isDead = r.reservation_status === 'cancelled' || r.reservation_status === 'no_show';
+        if (!isConfirmed && !isDead) { rank += 1; liveRank[r.id] = rank; }
+      });
       if (!rows.length) {
-        body.innerHTML = '<tr><td class="p-5 text-center text-slate-500" colspan="12">이 수업일 예약자가 아직 없습니다.</td></tr>';
+        body.innerHTML = '<tr><td class="p-5 text-center text-slate-500" colspan="13">이 수업일 예약자가 아직 없습니다.</td></tr>';
         return;
       }
       body.innerHTML = rows.map((r, index) => `
         <tr class="border-b border-slate-100 align-top">
           <td class="p-3">${index + 1}</td>
+          <td class="p-3">${groupBadgeHtml(r, liveRank, remaining)}</td>
           <td class="p-3 font-bold">${escapeHtml(r.applicant_name)}</td>
           <td class="p-3">${escapeHtml(r.phone)}</td>
           <td class="p-3">${escapeHtml(r.email || '')}</td>
@@ -259,7 +296,7 @@
       }
       const currentClass = adminData.classes.find((item) => item.class_id === selectedClassId()) || adminData.classes[0];
       renderSummary(currentClass);
-      renderReservations(reservationsForSelectedClass());
+      renderReservations(reservationsForSelectedClass(), currentClass);
     }
 
     function renderClassManager(classes) {
@@ -356,6 +393,23 @@
         document.getElementById('admin-app').classList.remove('hidden');
       } catch (error) {
         document.getElementById('login-message').textContent = `접속 실패: ${error.message}`;
+      }
+    });
+
+    document.getElementById('bulk-approve-button').addEventListener('click', async () => {
+      const classId = selectedClassId();
+      const message = document.getElementById('admin-message');
+      if (!classId) { message.textContent = '먼저 수업을 선택하세요.'; return; }
+      const currentClass = adminData.classes.find((item) => item.class_id === classId);
+      const remaining = currentClass ? Math.max(Number(currentClass.capacity || 0) - Number(currentClass.confirmed_count || 0), 0) : 0;
+      if (!window.confirm(`이 수업의 신청자를 선착순으로 ${remaining}명까지 '결제 안내 대상'으로 지정하고, 초과분은 자동 대기 처리합니다. 진행할까요?`)) return;
+      message.textContent = '선착순 일괄 승인 처리 중입니다.';
+      try {
+        const result = await callAdminApi('bulkApprove', { classId });
+        await loadAdminData();
+        message.textContent = `일괄 승인 완료: 결제 안내 대상 ${result.approved}명 · 대기 ${result.waitlisted}명.`;
+      } catch (error) {
+        message.textContent = `일괄 승인 실패: ${error.message}`;
       }
     });
 
