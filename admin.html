@@ -12,18 +12,18 @@
     <section class="rounded-3xl bg-slate-900 p-6 ring-1 ring-slate-800">
       <p class="text-sm font-bold text-orange-400">ADMIN</p>
       <h1 class="mt-2 text-3xl font-extrabold">관리자 모드</h1>
-      <p class="mt-3 text-sm text-slate-400">Supabase 무료 플랜 기반 예약 일정/신청 현황 관리 화면입니다. 실제 비밀번호는 프론트엔드에 저장하지 않고 Supabase Secret의 <code>ADMIN_PASSWORD_HASH</code>로 검증합니다.</p>
+      <p class="mt-3 text-sm text-slate-400">케틀벨 원데이 수업의 예약 일정과 신청 현황을 관리하는 화면입니다.</p>
       <p class="mt-2 text-xs font-bold text-red-300">관리자 전용 화면입니다. 예약자 개인정보 외부 공유 금지.</p>
     </section>
 
     <section data-admin-login class="mt-6 rounded-3xl bg-white p-6 text-slate-900">
       <h2 class="text-xl font-extrabold">비밀번호 입력</h2>
-      <p class="mt-2 text-sm text-slate-500">관리자 URL은 노출될 수 있으므로 URL 숨김이 아니라 서버 검증으로 보호합니다.</p>
+      <p class="mt-2 text-sm text-slate-500">관리자 비밀번호를 입력하면 예약 현황을 확인할 수 있습니다.</p>
       <form id="login-form" class="mt-5 flex flex-col gap-3 sm:flex-row">
         <input id="admin-password" type="password" autocomplete="current-password" placeholder="관리자 비밀번호" class="min-w-0 flex-1 rounded-xl border border-slate-300 px-4 py-3" required />
         <button class="rounded-xl bg-orange-500 px-5 py-3 font-bold text-white" type="submit">접속</button>
       </form>
-      <p id="login-message" class="mt-3 text-sm text-slate-500">비밀번호 원문은 HTML/JS에 넣지 않습니다.</p>
+      <p id="login-message" class="mt-3 text-sm text-slate-500">관리자 비밀번호를 입력해 주세요.</p>
     </section>
 
     <section id="admin-app" class="mt-6 hidden space-y-6">
@@ -39,7 +39,7 @@
         <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h2 class="text-xl font-extrabold">일정 선택</h2>
-            <p class="mt-1 text-sm text-slate-500">실제 Supabase <code>classes</code> / <code>class_reservation_summary</code> 기준입니다.</p>
+            <p class="mt-1 text-sm text-slate-500">현재 등록된 수업 일정과 신청 현황을 기준으로 표시합니다.</p>
           </div>
           <button id="refresh-button" class="rounded-xl bg-slate-900 px-5 py-3 font-bold text-white" type="button">새로고침</button>
         </div>
@@ -53,7 +53,7 @@
       <section class="rounded-3xl bg-white p-6 text-slate-900">
         <div>
           <h2 class="text-xl font-extrabold">수업 일정 등록 / 관리</h2>
-          <p class="mt-1 text-sm text-slate-500">여기서 등록한 일정이 고객 예약 페이지(index)의 달력에 노출됩니다. 공개를 끄면 고객 화면에서 사라지고, 삭제하면 해당 예약 신청도 함께 삭제됩니다.</p>
+          <p class="mt-1 text-sm text-slate-500">여기서 등록한 일정이 고객 예약 페이지 달력에 노출됩니다. 공개를 끄면 고객 화면에서 사라지고, 삭제하면 해당 예약 신청도 함께 삭제됩니다.</p>
         </div>
         <form id="class-create-form" class="mt-5 grid gap-3 md:grid-cols-12">
           <input type="hidden" id="class-edit-id" />
@@ -151,7 +151,7 @@
 
       <section class="rounded-3xl bg-white p-6 text-slate-900">
         <h2 class="text-xl font-extrabold">문자 자동 예약</h2>
-        <p class="mt-2 text-sm text-slate-500">Solapi Key는 프론트에 두지 않고 <code>supabase/functions/solapi-reservations</code>에서 Secret으로 처리합니다. 실제 발송은 다음 단계에서 연결합니다.</p>
+        <p class="mt-2 text-sm text-slate-500">예약 단계별로 고객에게 보낼 안내 문자 항목입니다. 실제 문자 자동 발송 연동은 준비 중입니다.</p>
         <ul class="mt-4 grid gap-2 text-sm md:grid-cols-2">
           <li>예약 신청 완료 문자</li><li>결제 안내 문자</li><li>여석 안내 문자</li><li>결제 완료 문자</li><li>수업 전 리마인드 문자</li><li>수업 후 복습 자료 문자</li><li>복습 영상 안내 문자는 수동 발송</li>
         </ul>
@@ -169,6 +169,9 @@
     const authEndpoint = 'supabase/functions/admin-auth';
     const adminReservationsEndpoint = 'supabase/functions/admin-reservations';
     const solapiEndpoint = 'supabase/functions/solapi-reservations';
+    // [개발자 메모] 보안 모델 — 운영자 화면에는 노출하지 않는다.
+    // 관리자 비밀번호는 클라이언트에 저장하지 않고, Supabase Edge Function이
+    // ADMIN_PASSWORD_HASH(SHA-256) 시크릿과 비교해 서버에서 검증한다.
     let adminPassword = '';
     let adminData = { classes: [], reservations: [] };
 
@@ -192,7 +195,7 @@
     }
 
     async function callAdminApi(action, payload = {}) {
-      if (!SUPABASE_URL || !SUPABASE_ANON_KEY) throw new Error('Supabase 설정이 없습니다.');
+      if (!SUPABASE_URL || !SUPABASE_ANON_KEY) throw new Error('서버 설정이 없습니다.');
       const response = await fetch(`${SUPABASE_URL}/functions/v1/admin-reservations`, {
         method: 'POST',
         headers: { 'content-type': 'application/json', apikey: SUPABASE_ANON_KEY, authorization: `Bearer ${SUPABASE_ANON_KEY}` },
@@ -354,7 +357,7 @@
     }
 
     async function loadAdminData() {
-      document.getElementById('admin-message').textContent = 'Supabase에서 예약 정보를 불러오는 중입니다.';
+      document.getElementById('admin-message').textContent = '예약 정보를 불러오는 중입니다.';
       const result = await callAdminApi('list');
       adminData = { classes: result.classes || [], reservations: result.reservations || [] };
       const previousClassId = selectedClassId();
