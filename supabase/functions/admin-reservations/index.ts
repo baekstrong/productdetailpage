@@ -105,12 +105,38 @@ async function notify(password: string, reservation: Record<string, unknown>, me
   await logMessage(String(reservation.id), messageType, phone, result as Record<string, unknown>);
 }
 
+// "2026-06-06" + "10:00" + "13:00" → "26년 6월 6일 10시~1시(3시간)"
+function formatSchedule(dateStr: string, startTime: string, endTime: string): string {
+  const parts = String(dateStr || '').split('-');
+  if (parts.length !== 3) return String(dateStr || '');
+  const yy = parts[0].slice(2);
+  const month = Number(parts[1]);
+  const day = Number(parts[2]);
+  const to12 = (h: number) => { const x = h % 12; return x === 0 ? 12 : x; };
+  const label = (t: string) => {
+    const h = Number(String(t).slice(0, 2));
+    const m = Number(String(t).slice(3, 5));
+    return m ? `${to12(h)}시 ${m}분` : `${to12(h)}시`;
+  };
+  let timeText = label(startTime);
+  if (endTime) {
+    const startMin = Number(String(startTime).slice(0, 2)) * 60 + Number(String(startTime).slice(3, 5));
+    let durMin = (Number(String(endTime).slice(0, 2)) * 60 + Number(String(endTime).slice(3, 5))) - startMin;
+    if (durMin < 0) durMin += 24 * 60;
+    const dh = Math.floor(durMin / 60);
+    const dm = durMin % 60;
+    const durText = dm ? `${dh}시간 ${dm}분` : `${dh}시간`;
+    timeText = `${label(startTime)}~${label(endTime)}(${durText})`;
+  }
+  return `${yy}년 ${month}월 ${day}일 ${timeText}`;
+}
+
 async function classInfo(classId: string): Promise<{ label: string; place: string }> {
   if (!classId) return { label: '', place: '' };
-  const rows = await supabaseFetch(`classes?id=eq.${encodeURIComponent(classId)}&select=class_date,start_time,place`);
+  const rows = await supabaseFetch(`classes?id=eq.${encodeURIComponent(classId)}&select=class_date,start_time,end_time,place`);
   if (Array.isArray(rows) && rows[0]) {
     return {
-      label: `${rows[0].class_date} ${String(rows[0].start_time || '').slice(0, 5)}`,
+      label: formatSchedule(rows[0].class_date, rows[0].start_time, rows[0].end_time),
       place: rows[0].place || '근력학교 고대점',
     };
   }

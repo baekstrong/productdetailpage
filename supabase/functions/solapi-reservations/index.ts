@@ -17,7 +17,7 @@ const templates: Record<MessageType, string> = {
   // 예약 신청 완료 문자
   reservation_received: `케틀벨 원데이 수업 예약 대기가 완료되었습니다
 
-예약 날짜: {class_date}
+수업 일정: {class_date}
 정원: 6명
 
 해당 날짜 모집이 열리면 대기 순서에 따라 결제 안내 문자를 보내드립니다
@@ -25,7 +25,7 @@ const templates: Record<MessageType, string> = {
   // 결제 안내 문자
   'payment 안내': `케틀벨 원데이 수업 결제 안내드립니다
 
-예약 날짜: {class_date}
+수업 일정: {class_date}
 장소: {place}
 정원: 6명
 
@@ -37,7 +37,7 @@ const templates: Record<MessageType, string> = {
   // 여석 안내 문자
   seat_opened: `케틀벨 원데이 수업에 여석이 생겨 안내드립니다
 
-일정: {class_date}
+수업 일정: {class_date}
 장소: {place}
 
 아래 링크에서 결제를 완료하시면 자리가 확정됩니다
@@ -48,24 +48,23 @@ const templates: Record<MessageType, string> = {
   // 결제 완료 문자
   payment_completed: `케틀벨 원데이 수업 결제가 완료되었습니다
 
-일정: {class_date}
+수업 일정: {class_date}
 장소: {place}
 
 수업 전날 준비물과 장소 안내 문자를 한 번 더 보내드립니다`,
   // 수업 전 리마인드 문자
   class_reminder: `내일 케틀벨 원데이 수업 안내드립니다
 
-일정: {class_date}
+수업 일정: {class_date}
 장소: {place}
 준비물: 편한 복장, 물 또는 텀블러 (신발은 필요 없습니다)
 
-수업은 3시간 진행됩니다
 처음 하시는 분 기준으로 천천히 진행합니다`,
   // 수업 후 복습 자료 문자
   review_material: `오늘 케틀벨 원데이 수업 고생하셨습니다
 
 복습용 교재 링크입니다
-{notion_url}
+https://www.notion.so/easystrength/Part-2-9910eb46d55f40efad4f986986f5876d?source=copy_link
 
 오늘 배운 내용을 한 번에 다 하려고 하지 마시고
 스윙과 겟업 중 하나만 먼저 복습해보시면 됩니다
