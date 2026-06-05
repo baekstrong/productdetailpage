@@ -3,7 +3,7 @@
 > 이 문서는 **작업 종료 시마다 갱신**한다. 다음 세션이 이 문서만 읽고 바로 이어서 작업할 수 있도록 유지한다.
 > 상세 아키텍처는 `CLAUDE.md`, 운영/콘텐츠 정책은 `AGENTS.md` 참고.
 
-**마지막 갱신:** 2026-06-05
+**마지막 갱신:** 2026-06-05 (Solapi 실발송 코드 추가)
 
 ---
 
@@ -30,6 +30,10 @@
   - 어드민 화면에서 기술 용어 제거(Supabase/ADMIN_PASSWORD_HASH 등은 개발자용 JS 주석으로만).
   - 예약 현황 표 줄바꿈 방지(whitespace-nowrap) + text-xs.
 - **보안**: `class_reservation_summary` 뷰에 `is_public = true` 필터 추가(비공개 서버단 차단).
+- **자동 문자(Solapi) — 코드 완료** (`solapi-reservations` + `admin-reservations`)
+  - `solapi-reservations`: 실제 HMAC-SHA256 발송 구현(스텁 아님). 관리자 비밀번호로 보호(요금 폭탄 방지). 키 없으면 안전 skip.
+  - `admin-reservations`: 상태 전환 시 서버사이드 자동 발송 — '결제 안내 대상 지정/일괄 승인' → 결제 안내 문자, '결제 완료' → 확정 문자. `message_logs` 기록(베스트 에포트).
+  - ⚠️ **아직 라이브 배포 안 됨 + 시크릿 미설정** → 실제로는 아직 안 나감. (아래 4번)
 
 ## 3. 배포 / 운영 상태
 
@@ -48,7 +52,12 @@
 
 ## 4. 다음에 할 일 (우선순위)
 
-1. **문자 실발송(Solapi) 구현** — `supabase/functions/solapi-reservations/index.ts`의 `sendSolapi()`가 현재 **스텁**. 실제로 문자가 안 나감. HMAC 인증 헤더 + `POST /messages/v4/send` 구현 + 예약 이벤트(접수/결제안내/여석)와 연결 필요. `SOLAPI_API_KEY/SECRET/SENDER` 시크릿은 `supabase secrets set`.
+1. **문자 실발송(Solapi) — 코드는 완료, 배포·시크릿만 남음** ⬅ 지금 여기
+   - (a) Solapi 시크릿 설정: Supabase Dashboard → Edge Functions → Secrets 에 `SOLAPI_API_KEY`, `SOLAPI_API_SECRET`, `SOLAPI_SENDER`(발신번호) 등록. (선택 `PAYMENT_LINK`)
+   - (b) CLI 재로그인(이전 토큰 폐기됨): `supabase login --token <새 PAT>`
+   - (c) 두 함수 모두 재배포: `supabase functions deploy admin-reservations --project-ref vjoxzbxcylqyhxezxiuj --no-verify-jwt` / `... deploy solapi-reservations ... --no-verify-jwt`
+   - (d) 테스트: admin에서 신청 1건을 '결제 안내 대상으로 지정' → 그 번호로 결제 안내 문자 수신 확인.
+   - 미구현(추후): 예약 접수 즉시 문자(anon → DB 트리거/웹훅 필요), 수업 전 리마인드(cron), 여석 안내.
 2. **테스트 데이터 정리** — 라이브 DB에 테스트 신청(이쌍칼/구마적, 06-06)과 테스트 수업(06-13 01:00)이 있음. 실제 오픈 전 admin에서 정리.
 3. (선택) 커스텀 도메인 연결.
 4. **공개 전 백관장 승인**(AGENTS.md 14항).

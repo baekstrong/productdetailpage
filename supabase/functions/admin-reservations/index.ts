@@ -56,6 +56,62 @@ async function supabaseFetch(path: string, options: RequestInit = {}) {
   return text ? JSON.parse(text) : null;
 }
 
+// --- 자동 문자 발송 (solapi-reservations 함수를 서버사이드로 호출) ---
+const PAYMENT_LINK = Deno.env.get('PAYMENT_LINK') || 'https://smartstore.naver.com/easystrength101/products/9825334073';
+
+function maskPhone(phone: string): string {
+  return String(phone || '').replace(/^(010)(\d{4})(\d{4})$/, '$1-****-$3');
+}
+
+async function sendSms(password: string, messageType: string, phone: string, values: Record<string, string>) {
+  const { url, serviceKey } = getSupabaseAdmin();
+  try {
+    const response = await fetch(`${url}/functions/v1/solapi-reservations`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', apikey: serviceKey, authorization: `Bearer ${serviceKey}` },
+      body: JSON.stringify({ password, messageType, phone, values }),
+    });
+    return await response.json().catch(() => ({ ok: false, error: 'invalid solapi response' }));
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'solapi call failed' };
+  }
+}
+
+async function logMessage(reservationId: string, messageType: string, phone: string, result: Record<string, unknown>) {
+  try {
+    await supabaseFetch('message_logs', {
+      method: 'POST',
+      headers: { prefer: 'return=minimal' },
+      body: JSON.stringify({
+        reservation_id: reservationId,
+        message_type: messageType,
+        phone_masked: maskPhone(phone),
+        provider_message_id: (result && (result.messageId as string)) || null,
+        status: result && result.ok ? 'sent' : (result && result.skipped ? 'skipped' : 'failed'),
+        error_message: result && result.ok ? null : ((result && (result.error || result.reason)) as string) || null,
+        sent_at: new Date().toISOString(),
+      }),
+    });
+  } catch (_) {
+    // 로깅 실패는 무시(베스트 에포트)
+  }
+}
+
+// 상태 전환에 맞는 안내 문자를 자동 발송한다. 실패해도 관리자 액션 자체는 막지 않는다.
+async function notify(password: string, reservation: Record<string, unknown>, messageType: string, values: Record<string, string>) {
+  const phone = String(reservation?.phone || '');
+  if (!phone) return;
+  const result = await sendSms(password, messageType, phone, values);
+  await logMessage(String(reservation.id), messageType, phone, result as Record<string, unknown>);
+}
+
+async function classDateLabel(classId: string): Promise<string> {
+  if (!classId) return '';
+  const rows = await supabaseFetch(`classes?id=eq.${encodeURIComponent(classId)}&select=class_date,start_time`);
+  if (Array.isArray(rows) && rows[0]) return `${rows[0].class_date} ${String(rows[0].start_time || '').slice(0, 5)}`;
+  return '';
+}
+
 const CLASS_FIELDS = ['class_date', 'start_time', 'end_time', 'place', 'capacity', 'is_public', 'status'];
 const CLASS_STATUSES = new Set(['open', 'waitlist', 'closed', 'hidden']);
 
@@ -135,7 +191,7 @@ async function deleteClass(classId: string) {
   return { ok: true };
 }
 
-async function bulkApprove(classId: string) {
+async function bulkApprove(classId: string, password: string) {
   if (!classId) throw new Error('classId is required');
   // 선착순(신청 시간순)으로, 예약 가능 인원(capacity)에서 이미 확정된 인원을 뺀 만큼을
   // '결제 안내 대상(payment_target)'으로 지정하고, 초과분은 자동으로 '대기(waitlisted)'로 저장한다.
@@ -164,11 +220,13 @@ async function bulkApprove(classId: string) {
       headers: { prefer: 'return=minimal' },
       body: JSON.stringify({ ...updates, updated_at: new Date().toISOString() }),
     });
+    // 선착순 통과(결제 안내 대상)에게만 결제 안내 문자 자동 발송. 대기자는 발송하지 않는다.
+    if (i < remaining) await notify(password, reservation, 'payment 안내', { payment_url: PAYMENT_LINK });
   }
   return { ok: true, capacity, remaining, approved, waitlisted };
 }
 
-async function updateReservation(reservationId: string, updates: Record<string, unknown>) {
+async function updateReservation(reservationId: string, updates: Record<string, unknown>, password: string) {
   const allowedKeys = new Set(['reservation_status', 'payment_status', 'waitlist_order', 'admin_memo']);
   const safeUpdates: Record<string, unknown> = { updated_at: new Date().toISOString() };
   for (const [key, value] of Object.entries(updates || {})) {
@@ -181,7 +239,17 @@ async function updateReservation(reservationId: string, updates: Record<string, 
     headers: { prefer: 'return=representation' },
     body: JSON.stringify(safeUpdates),
   });
-  return { ok: true, reservation: Array.isArray(reservation) ? reservation[0] : reservation };
+  const updated = Array.isArray(reservation) ? reservation[0] : reservation;
+
+  // 상태 전환에 맞춰 안내 문자 자동 발송 (베스트 에포트)
+  if (updated) {
+    if (updated.reservation_status === 'payment_target' || updated.payment_status === 'sent') {
+      await notify(password, updated, 'payment 안내', { payment_url: PAYMENT_LINK });
+    } else if (updated.reservation_status === 'confirmed' || updated.payment_status === 'paid') {
+      await notify(password, updated, 'payment_completed', { class_date: await classDateLabel(String(updated.class_id || '')) });
+    }
+  }
+  return { ok: true, reservation: updated };
 }
 
 serve(async (req) => {
@@ -198,9 +266,9 @@ serve(async (req) => {
     if (action === 'createClass') return jsonResponse(await createClass(body.class || {}));
     if (action === 'updateClass') return jsonResponse(await updateClass(String(body.classId || ''), body.updates || {}));
     if (action === 'deleteClass') return jsonResponse(await deleteClass(String(body.classId || '')));
-    if (action === 'bulkApprove') return jsonResponse(await bulkApprove(String(body.classId || '')));
+    if (action === 'bulkApprove') return jsonResponse(await bulkApprove(String(body.classId || ''), password));
     if (action === 'updateReservation') {
-      return jsonResponse(await updateReservation(String(body.reservationId || ''), body.updates || {}));
+      return jsonResponse(await updateReservation(String(body.reservationId || ''), body.updates || {}, password));
     }
 
     return jsonResponse({ error: 'unknown action' }, 400);
