@@ -62,7 +62,7 @@ select
   count(r.id) filter (where r.reservation_status = 'payment_target') as payment_ready_count
 from public.classes c
 left join public.reservations r on r.class_id = c.id
-where c.status <> 'hidden'
+where c.is_public = true and c.status <> 'hidden'
 group by c.id;
 
 alter table public.classes enable row level security;

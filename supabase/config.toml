@@ -1,0 +1,15 @@
+project_id = "vjoxzbxcylqyhxezxiuj"
+
+# 세 Edge Function 모두 게이트웨이 JWT 검증을 끈다.
+# 인증은 함수 내부에서 관리자 비밀번호(SHA-256) / 서버사이드 시크릿으로 직접 처리하며,
+# 프론트는 publishable(anon) 키만 보내므로 JWT 검증을 켜면 호출이 막힌다.
+# verify_jwt 기본값은 true 이므로 반드시 아래처럼 명시해야 재배포 시 깨지지 않는다.
+
+[functions.admin-auth]
+verify_jwt = false
+
+[functions.admin-reservations]
+verify_jwt = false
+
+[functions.solapi-reservations]
+verify_jwt = false

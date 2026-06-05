@@ -56,11 +56,83 @@ async function supabaseFetch(path: string, options: RequestInit = {}) {
   return text ? JSON.parse(text) : null;
 }
 
+const CLASS_FIELDS = ['class_date', 'start_time', 'end_time', 'place', 'capacity', 'is_public', 'status'];
+const CLASS_STATUSES = new Set(['open', 'waitlist', 'closed', 'hidden']);
+
+function pickClassFields(input: Record<string, unknown>): Record<string, unknown> {
+  const row: Record<string, unknown> = {};
+  for (const key of CLASS_FIELDS) {
+    if (input[key] === undefined || input[key] === null || input[key] === '') continue;
+    if (key === 'capacity') row[key] = Number(input[key]);
+    else if (key === 'is_public') row[key] = Boolean(input[key]);
+    else row[key] = input[key];
+  }
+  if (row.status !== undefined && !CLASS_STATUSES.has(String(row.status))) throw new Error('invalid class status');
+  return row;
+}
+
 async function listAdminData() {
-  // Reads public.class_reservation_summary and public.reservations through PostgREST's public schema.
-  const classes = await supabaseFetch('class_reservation_summary?select=*&order=class_date.asc,start_time.asc');
+  // Admin uses the service role, so it reads the raw public.classes / public.reservations tables
+  // directly (the anon-facing public.class_reservation_summary view hides non-public / hidden classes,
+  // which the admin still needs to manage). Counts are computed here from the same data.
+  const classes = await supabaseFetch('classes?select=*&order=class_date.asc,start_time.asc');
   const reservations = await supabaseFetch('reservations?select=*&order=created_at.asc');
-  return { ok: true, classes, reservations };
+  const classRows = Array.isArray(classes) ? classes : [];
+  const reservationRows = Array.isArray(reservations) ? reservations : [];
+
+  const summary = classRows.map((c: Record<string, unknown>) => {
+    const rows = reservationRows.filter((r: Record<string, unknown>) => r.class_id === c.id);
+    const confirmed = rows.filter((r) => r.reservation_status === 'confirmed' || r.payment_status === 'paid').length;
+    const waitlist = rows.filter((r) => r.reservation_status === 'applied' || r.reservation_status === 'waitlisted').length;
+    const paymentReady = rows.filter((r) => r.reservation_status === 'payment_target').length;
+    return {
+      class_id: c.id,
+      class_date: c.class_date,
+      start_time: c.start_time,
+      end_time: c.end_time,
+      place: c.place,
+      capacity: c.capacity,
+      is_public: c.is_public,
+      status: c.status,
+      confirmed_count: confirmed,
+      available_count: Math.max(Number(c.capacity || 0) - confirmed, 0),
+      waitlist_count: waitlist,
+      payment_ready_count: paymentReady,
+    };
+  });
+  return { ok: true, classes: summary, reservations: reservationRows };
+}
+
+async function createClass(input: Record<string, unknown>) {
+  const row = pickClassFields(input || {});
+  if (!row.class_date || !row.start_time || !row.end_time) {
+    throw new Error('class_date, start_time, end_time are required');
+  }
+  const created = await supabaseFetch('classes', {
+    method: 'POST',
+    headers: { prefer: 'return=representation' },
+    body: JSON.stringify(row),
+  });
+  return { ok: true, class: Array.isArray(created) ? created[0] : created };
+}
+
+async function updateClass(classId: string, updates: Record<string, unknown>) {
+  if (!classId) throw new Error('classId is required');
+  const row = pickClassFields(updates || {});
+  row.updated_at = new Date().toISOString();
+  const updated = await supabaseFetch(`classes?id=eq.${encodeURIComponent(classId)}&select=*`, {
+    method: 'PATCH',
+    headers: { prefer: 'return=representation' },
+    body: JSON.stringify(row),
+  });
+  return { ok: true, class: Array.isArray(updated) ? updated[0] : updated };
+}
+
+async function deleteClass(classId: string) {
+  if (!classId) throw new Error('classId is required');
+  // public.reservations rows for this class are removed via ON DELETE CASCADE.
+  await supabaseFetch(`classes?id=eq.${encodeURIComponent(classId)}`, { method: 'DELETE' });
+  return { ok: true };
 }
 
 async function updateReservation(reservationId: string, updates: Record<string, unknown>) {
@@ -90,6 +162,9 @@ serve(async (req) => {
     await assertAdminPassword(password);
 
     if (action === 'list') return jsonResponse(await listAdminData());
+    if (action === 'createClass') return jsonResponse(await createClass(body.class || {}));
+    if (action === 'updateClass') return jsonResponse(await updateClass(String(body.classId || ''), body.updates || {}));
+    if (action === 'deleteClass') return jsonResponse(await deleteClass(String(body.classId || '')));
     if (action === 'updateReservation') {
       return jsonResponse(await updateReservation(String(body.reservationId || ''), body.updates || {}));
     }
