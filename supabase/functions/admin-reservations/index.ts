@@ -105,11 +105,16 @@ async function notify(password: string, reservation: Record<string, unknown>, me
   await logMessage(String(reservation.id), messageType, phone, result as Record<string, unknown>);
 }
 
-async function classDateLabel(classId: string): Promise<string> {
-  if (!classId) return '';
-  const rows = await supabaseFetch(`classes?id=eq.${encodeURIComponent(classId)}&select=class_date,start_time`);
-  if (Array.isArray(rows) && rows[0]) return `${rows[0].class_date} ${String(rows[0].start_time || '').slice(0, 5)}`;
-  return '';
+async function classInfo(classId: string): Promise<{ label: string; place: string }> {
+  if (!classId) return { label: '', place: '' };
+  const rows = await supabaseFetch(`classes?id=eq.${encodeURIComponent(classId)}&select=class_date,start_time,place`);
+  if (Array.isArray(rows) && rows[0]) {
+    return {
+      label: `${rows[0].class_date} ${String(rows[0].start_time || '').slice(0, 5)}`,
+      place: rows[0].place || '근력학교 고대점',
+    };
+  }
+  return { label: '', place: '' };
 }
 
 const CLASS_FIELDS = ['class_date', 'start_time', 'end_time', 'place', 'capacity', 'is_public', 'status'];
@@ -197,6 +202,7 @@ async function bulkApprove(classId: string, password: string) {
   // '결제 안내 대상(payment_target)'으로 지정하고, 초과분은 자동으로 '대기(waitlisted)'로 저장한다.
   const classRows = await supabaseFetch(`classes?id=eq.${encodeURIComponent(classId)}&select=capacity`);
   const capacity = Array.isArray(classRows) && classRows[0] ? Number(classRows[0].capacity || 0) : 0;
+  const info = await classInfo(classId);
   const reservations = await supabaseFetch(`reservations?class_id=eq.${encodeURIComponent(classId)}&select=*&order=created_at.asc`);
   const rows = Array.isArray(reservations) ? reservations : [];
 
@@ -221,7 +227,7 @@ async function bulkApprove(classId: string, password: string) {
       body: JSON.stringify({ ...updates, updated_at: new Date().toISOString() }),
     });
     // 선착순 통과(결제 안내 대상)에게만 결제 안내 문자 자동 발송. 대기자는 발송하지 않는다.
-    if (i < remaining) await notify(password, reservation, 'payment 안내', { payment_url: PAYMENT_LINK });
+    if (i < remaining) await notify(password, reservation, 'payment 안내', { class_date: info.label, place: info.place, payment_url: PAYMENT_LINK });
   }
   return { ok: true, capacity, remaining, approved, waitlisted };
 }
@@ -244,9 +250,11 @@ async function updateReservation(reservationId: string, updates: Record<string, 
   // 상태 전환에 맞춰 안내 문자 자동 발송 (베스트 에포트)
   if (updated) {
     if (updated.reservation_status === 'payment_target' || updated.payment_status === 'sent') {
-      await notify(password, updated, 'payment 안내', { payment_url: PAYMENT_LINK });
+      const info = await classInfo(String(updated.class_id || ''));
+      await notify(password, updated, 'payment 안내', { class_date: info.label, place: info.place, payment_url: PAYMENT_LINK });
     } else if (updated.reservation_status === 'confirmed' || updated.payment_status === 'paid') {
-      await notify(password, updated, 'payment_completed', { class_date: await classDateLabel(String(updated.class_id || '')) });
+      const info = await classInfo(String(updated.class_id || ''));
+      await notify(password, updated, 'payment_completed', { class_date: info.label, place: info.place });
     }
   }
   return { ok: true, reservation: updated };

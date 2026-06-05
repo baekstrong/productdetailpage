@@ -15,17 +15,62 @@ type MessageType =
 
 const templates: Record<MessageType, string> = {
   // 예약 신청 완료 문자
-  reservation_received: '[근력학교] 케틀벨 원데이 수업 예약 신청이 접수되었습니다. 결제 안내를 받으신 뒤 결제까지 완료되어야 자리가 확정됩니다.',
+  reservation_received: `케틀벨 원데이 수업 예약 대기가 완료되었습니다
+
+예약 날짜: {class_date}
+정원: 6명
+
+해당 날짜 모집이 열리면 대기 순서에 따라 결제 안내 문자를 보내드립니다
+결제까지 완료되어야 수업 자리가 확정됩니다`,
   // 결제 안내 문자
-  'payment 안내': '[근력학교] 케틀벨 원데이 수업 결제 순서가 되었습니다. 아래 링크에서 결제를 완료해주세요. 결제 완료 시 자리가 확정됩니다. 결제 링크: {payment_url}',
+  'payment 안내': `케틀벨 원데이 수업 결제 안내드립니다
+
+예약 날짜: {class_date}
+장소: {place}
+정원: 6명
+
+아래 링크에서 결제를 완료하시면 자리가 확정됩니다
+{payment_url}
+
+안내 문자를 받은 뒤 24시간 이내에 결제해 주세요
+시간 내 미결제 시 다음 대기자에게 자리가 넘어갈 수 있습니다`,
   // 여석 안내 문자
-  seat_opened: '[근력학교] 신청하신 케틀벨 원데이 수업에 여석이 생겼습니다. 아래 링크에서 결제하시면 자리가 확정됩니다. 결제 링크: {payment_url}',
+  seat_opened: `케틀벨 원데이 수업에 여석이 생겨 안내드립니다
+
+일정: {class_date}
+장소: {place}
+
+아래 링크에서 결제를 완료하시면 자리가 확정됩니다
+{payment_url}
+
+안내 문자를 받은 뒤 24시간 이내에 결제해 주세요
+여석 안내는 순차적으로 발송되며 결제 완료 순으로 확정됩니다`,
   // 결제 완료 문자
-  payment_completed: '[근력학교] 케틀벨 원데이 수업 예약이 확정되었습니다. 일정: {class_date} / 장소: 근력학교 고대점 / 준비물: 편한 복장, 물',
+  payment_completed: `케틀벨 원데이 수업 결제가 완료되었습니다
+
+일정: {class_date}
+장소: {place}
+
+수업 전날 준비물과 장소 안내 문자를 한 번 더 보내드립니다`,
   // 수업 전 리마인드 문자
-  class_reminder: '[근력학교] 내일 케틀벨 원데이 수업이 진행됩니다. 일정: {class_date} / 장소: 근력학교 고대점 / 준비물: 편한 복장, 물',
+  class_reminder: `내일 케틀벨 원데이 수업 안내드립니다
+
+일정: {class_date}
+장소: {place}
+준비물: 편한 복장, 물 또는 텀블러 (신발은 필요 없습니다)
+
+수업은 3시간 진행됩니다
+처음 하시는 분 기준으로 천천히 진행합니다`,
   // 수업 후 복습 자료 문자
-  review_material: '[근력학교] 오늘 수업 고생하셨습니다. 복습용 교재 링크를 보내드립니다. 링크: {notion_url}',
+  review_material: `오늘 케틀벨 원데이 수업 고생하셨습니다
+
+복습용 교재 링크입니다
+{notion_url}
+
+오늘 배운 내용을 한 번에 다 하려고 하지 마시고
+스윙과 겟업 중 하나만 먼저 복습해보시면 됩니다
+
+복습 영상 링크는 별도로 안내드리겠습니다`,
   // 복습 영상은 백관장 수동 발송
 };
 
@@ -95,7 +140,7 @@ async function sendSolapi(to: string, text: string, scheduledAt?: string) {
     // 한글 템플릿은 SMS(90바이트) 초과 → LMS로 발송. 짧으면 SMS.
     type: byteLength <= 80 ? 'SMS' : 'LMS',
   };
-  if (byteLength > 80) message.subject = '근력학교 케틀벨 원데이';
+  if (byteLength > 80) message.subject = '케틀벨 원데이 수업';
 
   const payload: Record<string, unknown> = { message };
   if (scheduledAt) payload.scheduledDate = scheduledAt;
