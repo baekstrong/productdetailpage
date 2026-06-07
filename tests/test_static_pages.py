@@ -206,5 +206,33 @@ class StaticPageTests(unittest.TestCase):
         self.assertNotIn("review_video", solapi)
 
 
+    def test_sms_automation_seat_reminder_review_and_cancel(self):
+        admin = read_page("admin.html")
+        admin_fn = read_page("supabase/functions/admin-reservations/index.ts")
+        solapi = read_page("supabase/functions/solapi-reservations/index.ts")
+
+        # 관리자 '여석 안내' 액션
+        self.assertIn('data-bulk-action="seat-opened"', admin)
+        self.assertIn("여석 안내", admin)
+        self.assertIn("'seat-opened'", admin)
+
+        # 예약 등록(리마인드/복습) + 여석 안내 오버라이드 + 취소 연동
+        self.assertIn("seat_opened", admin_fn)
+        self.assertIn("class_reminder", admin_fn)
+        self.assertIn("review_material", admin_fn)
+        self.assertIn("kstReminderSchedule", admin_fn)
+        self.assertIn("kstReviewSchedule", admin_fn)
+        self.assertIn("scheduleFollowups", admin_fn)
+        self.assertIn("cancelScheduledFollowups", admin_fn)
+        self.assertIn("cancelGroupId", admin_fn)
+        self.assertIn("status=eq.scheduled", admin_fn)
+
+        # solapi 예약 취소 엔드포인트 + groupId 반환
+        self.assertIn("cancelGroupId", solapi)
+        self.assertIn("/schedule", solapi)
+        self.assertIn("groupId", solapi)
+        self.assertIn("scheduledDate", solapi)
+
+
 if __name__ == "__main__":
     unittest.main()
