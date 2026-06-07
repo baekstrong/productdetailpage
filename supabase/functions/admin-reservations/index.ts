@@ -332,7 +332,7 @@ async function cancelScheduledFollowups(password: string, reservationId: string)
   }
 }
 
-async function updateReservation(reservationId: string, updates: Record<string, unknown>, password: string) {
+async function updateReservation(reservationId: string, updates: Record<string, unknown>, password: string, notifyOverride?: string) {
   const allowedKeys = new Set(['reservation_status', 'payment_status', 'waitlist_order', 'admin_memo']);
   const safeUpdates: Record<string, unknown> = { updated_at: new Date().toISOString() };
   for (const [key, value] of Object.entries(updates || {})) {
@@ -347,17 +347,22 @@ async function updateReservation(reservationId: string, updates: Record<string, 
   });
   const updated = Array.isArray(reservation) ? reservation[0] : reservation;
 
-  // 상태 전환에 맞춰 안내 문자 자동 발송 (베스트 에포트)
+  // 상태 전환에 맞춰 안내 문자 발송/예약/취소 (베스트 에포트)
   if (updated) {
     if (updated.payment_status === 'expired') {
       const info = await classInfo(String(updated.class_id || ''));
       await notify(password, updated, 'payment_expired', { class_date: info.label, place: info.place });
+      await cancelScheduledFollowups(password, String(updated.id));
+    } else if (updated.reservation_status === 'cancelled') {
+      await cancelScheduledFollowups(password, String(updated.id));
     } else if (updated.reservation_status === 'payment_target' || updated.payment_status === 'sent') {
       const info = await classInfo(String(updated.class_id || ''));
-      await notify(password, updated, 'payment 안내', { class_date: info.label, place: info.place, payment_url: PAYMENT_LINK });
+      const messageType = notifyOverride === 'seat_opened' ? 'seat_opened' : 'payment 안내';
+      await notify(password, updated, messageType, { class_date: info.label, place: info.place, payment_url: PAYMENT_LINK });
     } else if (updated.reservation_status === 'confirmed' || updated.payment_status === 'paid') {
       const info = await classInfo(String(updated.class_id || ''));
       await notify(password, updated, 'payment_completed', { class_date: info.label, place: info.place });
+      await scheduleFollowups(password, updated, info);
     }
   }
   return { ok: true, reservation: updated };
@@ -379,7 +384,7 @@ serve(async (req) => {
     if (action === 'deleteClass') return jsonResponse(await deleteClass(String(body.classId || '')));
     if (action === 'bulkApprove') return jsonResponse(await bulkApprove(String(body.classId || ''), password));
     if (action === 'updateReservation') {
-      return jsonResponse(await updateReservation(String(body.reservationId || ''), body.updates || {}, password));
+      return jsonResponse(await updateReservation(String(body.reservationId || ''), body.updates || {}, password, body.notify ? String(body.notify) : undefined));
     }
 
     return jsonResponse({ error: 'unknown action' }, 400);
