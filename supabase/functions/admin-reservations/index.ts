@@ -63,13 +63,13 @@ function maskPhone(phone: string): string {
   return String(phone || '').replace(/^(010)(\d{4})(\d{4})$/, '$1-****-$3');
 }
 
-async function sendSms(password: string, messageType: string, phone: string, values: Record<string, string>) {
+async function sendSms(password: string, messageType: string, phone: string, values: Record<string, string>, scheduledAt?: string) {
   const { url, serviceKey } = getSupabaseAdmin();
   try {
     const response = await fetch(`${url}/functions/v1/solapi-reservations`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', apikey: serviceKey, authorization: `Bearer ${serviceKey}` },
-      body: JSON.stringify({ password, messageType, phone, values }),
+      body: JSON.stringify({ password, messageType, phone, values, scheduledAt }),
     });
     return await response.json().catch(() => ({ ok: false, error: 'invalid solapi response' }));
   } catch (error) {
@@ -77,8 +77,10 @@ async function sendSms(password: string, messageType: string, phone: string, val
   }
 }
 
-async function logMessage(reservationId: string, messageType: string, phone: string, result: Record<string, unknown>) {
+async function logMessage(reservationId: string, messageType: string, phone: string, result: Record<string, unknown>, scheduledAt?: string) {
   try {
+    const ok = Boolean(result && result.ok);
+    const status = ok ? (scheduledAt ? 'scheduled' : 'sent') : (result && result.skipped ? 'skipped' : 'failed');
     await supabaseFetch('message_logs', {
       method: 'POST',
       headers: { prefer: 'return=minimal' },
@@ -86,9 +88,10 @@ async function logMessage(reservationId: string, messageType: string, phone: str
         reservation_id: reservationId,
         message_type: messageType,
         phone_masked: maskPhone(phone),
-        provider_message_id: (result && (result.messageId as string)) || null,
-        status: result && result.ok ? 'sent' : (result && result.skipped ? 'skipped' : 'failed'),
-        error_message: result && result.ok ? null : ((result && (result.error || result.reason)) as string) || null,
+        provider_message_id: (result && ((result.groupId as string) || (result.messageId as string))) || null,
+        status,
+        error_message: ok ? null : ((result && (result.error || result.reason)) as string) || null,
+        scheduled_at: scheduledAt || null,
         sent_at: new Date().toISOString(),
       }),
     });
@@ -97,12 +100,11 @@ async function logMessage(reservationId: string, messageType: string, phone: str
   }
 }
 
-// 상태 전환에 맞는 안내 문자를 자동 발송한다. 실패해도 관리자 액션 자체는 막지 않는다.
-async function notify(password: string, reservation: Record<string, unknown>, messageType: string, values: Record<string, string>) {
+async function notify(password: string, reservation: Record<string, unknown>, messageType: string, values: Record<string, string>, scheduledAt?: string) {
   const phone = String(reservation?.phone || '');
   if (!phone) return;
-  const result = await sendSms(password, messageType, phone, values);
-  await logMessage(String(reservation.id), messageType, phone, result as Record<string, unknown>);
+  const result = await sendSms(password, messageType, phone, values, scheduledAt);
+  await logMessage(String(reservation.id), messageType, phone, result as Record<string, unknown>, scheduledAt);
 }
 
 // 예약 발송 시각 계산(KST). scheduledDate는 Solapi에 보낼 "YYYY-MM-DD HH:mm:ss"(KST 로컬),
