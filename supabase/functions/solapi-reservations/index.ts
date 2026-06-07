@@ -168,6 +168,7 @@ async function sendSolapi(to: string, text: string, scheduledAt?: string) {
     provider: 'solapi',
     to: maskPhone(to),
     messageId: result.messageId || (result.groupInfo && result.groupInfo._id) || null,
+    groupId: result.groupId || (result.groupInfo && result.groupInfo._id) || null,
     status: result.statusCode || 'sent',
     scheduledAt,
   };
