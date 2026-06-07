@@ -315,6 +315,96 @@
       updateSelectedCount();
     }
 
+    // 현황판 행 정의 — type이 null이면 fixed 문구만 표시(자동발송 없음/수동).
+    const MESSAGE_STATUS_ROWS = [
+      { label: '예약 신청 완료 문자', type: null, fixed: '자동발송 안 함' },
+      { label: '결제 안내 문자', type: 'payment 안내' },
+      { label: '여석 안내 문자', type: 'seat_opened' },
+      { label: '결제 완료 문자', type: 'payment_completed' },
+      { label: '수업 전 리마인드 문자', type: 'class_reminder' },
+      { label: '수업 후 복습 자료 문자', type: 'review_material' },
+      { label: '복습 영상 안내 문자', type: null, fixed: '수동 발송' },
+    ];
+
+    function bestLogStatus(statuses) {
+      if (statuses.includes('sent')) return 'sent';
+      if (statuses.includes('scheduled')) return 'scheduled';
+      if (statuses.includes('cancelled')) return 'cancelled';
+      return 'missing'; // failed / skipped / cancel_failed / 기타
+    }
+
+    // 선택 일정 예약자 기준으로 특정 문자 종류의 발송 상태를 집계.
+    function summarizeMessageStatus(type, reservations, logs) {
+      const resById = {};
+      reservations.forEach((r) => { resById[r.id] = r; });
+      const byRes = {};
+      (logs || []).forEach((log) => {
+        if (log.message_type !== type) return;
+        if (!resById[log.reservation_id]) return;
+        (byRes[log.reservation_id] = byRes[log.reservation_id] || []).push(log.status);
+      });
+      const sent = [], scheduled = [], missing = [];
+      Object.keys(byRes).forEach((rid) => {
+        const best = bestLogStatus(byRes[rid]);
+        const name = resById[rid] ? resById[rid].applicant_name : '';
+        if (best === 'sent') sent.push({ id: rid, name });
+        else if (best === 'scheduled') scheduled.push({ id: rid, name });
+        else if (best === 'cancelled') { /* 취소는 행에서 완전 제외 */ }
+        else missing.push({ id: rid, name });
+      });
+      return { sent, scheduled, missing };
+    }
+
+    function statusRowHtml(label, summaryHtml, actionHtml) {
+      return `<div data-message-status class="flex items-center justify-between gap-3 border-b border-slate-100 py-2">
+        <span class="text-sm font-bold text-slate-700">${escapeHtml(label)}</span>
+        <span class="flex items-center gap-3 text-sm">${summaryHtml}${actionHtml || ''}</span>
+      </div>`;
+    }
+
+    function renderMessageStatus() {
+      const container = document.getElementById('message-status-rows');
+      if (!container) return;
+      const reservations = reservationsForSelectedClass();
+      const logs = adminData.messageLogs || [];
+      container.innerHTML = MESSAGE_STATUS_ROWS.map((row) => {
+        if (!row.type) {
+          return statusRowHtml(row.label, `<span class="text-slate-400">${escapeHtml(row.fixed)}</span>`, '');
+        }
+        const { sent, scheduled, missing } = summarizeMessageStatus(row.type, reservations, logs);
+        const n = sent.length + scheduled.length + missing.length;
+        let summary, action = '';
+        if (n === 0) {
+          summary = '<span class="text-slate-400">발송 내역 없음</span>';
+        } else if (missing.length === 0) {
+          if (scheduled.length === 0) summary = `<span class="font-bold text-emerald-700">✅ 전체 발송 완료 (${sent.length}명)</span>`;
+          else if (sent.length === 0) summary = `<span class="font-bold text-sky-700">📅 전체 예약 완료 (${scheduled.length}명)</span>`;
+          else summary = `<span class="font-bold text-emerald-700">발송 ${sent.length}명 · 예약 ${scheduled.length}명 (총 ${n}명)</span>`;
+        } else {
+          const names = missing.map((m) => escapeHtml(m.name)).join(', ');
+          summary = `<span class="font-bold text-amber-700">발송 완료 (제외: ${names})</span>`;
+          action = `<button type="button" data-resend-type="${escapeHtml(row.type)}" class="rounded-lg bg-orange-100 px-3 py-1.5 text-xs font-bold text-orange-700">재발송 ${missing.length}명</button>`;
+        }
+        return statusRowHtml(row.label, summary, action);
+      }).join('');
+    }
+
+    async function handleResend(type) {
+      const reservations = reservationsForSelectedClass();
+      const ids = summarizeMessageStatus(type, reservations, adminData.messageLogs || []).missing.map((m) => m.id);
+      if (!ids.length) return;
+      if (!window.confirm(`미발송 ${ids.length}명에게 재발송할까요?`)) return;
+      const msg = document.getElementById('admin-message');
+      if (msg) msg.textContent = '재발송 중입니다.';
+      try {
+        await callAdminApi('resendMessage', { classId: selectedClassId(), messageType: type, reservationIds: ids });
+        await loadAdminData();
+        if (msg) msg.textContent = '재발송했습니다.';
+      } catch (error) {
+        if (msg) msg.textContent = `재발송 실패: ${error.message}`;
+      }
+    }
+
     function renderAdminData() {
       const filter = document.getElementById('class-filter');
       const allIds = adminData.classes.map((c) => c.class_id);
@@ -326,6 +416,7 @@
       const currentClass = adminData.classes.find((item) => item.class_id === selectedClassId());
       renderSummary(currentClass);
       renderReservations(reservationsForSelectedClass(), currentClass);
+      renderMessageStatus();
     }
 
     function renderClassManager(classes) {
@@ -489,6 +580,10 @@
     });
 
     document.getElementById('class-filter').addEventListener('change', renderAdminData);
+    document.getElementById('message-status-rows').addEventListener('click', (event) => {
+      const button = event.target.closest('[data-resend-type]');
+      if (button) handleResend(button.dataset.resendType);
+    });
     document.getElementById('refresh-button').addEventListener('click', () => loadAdminData().catch((error) => { document.getElementById('admin-message').textContent = error.message; }));
 
     document.getElementById('reservation-rows').addEventListener('change', (event) => {
