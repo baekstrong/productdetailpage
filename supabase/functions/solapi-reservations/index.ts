@@ -174,6 +174,25 @@ async function sendSolapi(to: string, text: string, scheduledAt?: string) {
   };
 }
 
+// 예약 발송 취소: 그룹 단위 예약을 DELETE 한다.
+async function cancelSchedule(groupId: string) {
+  const SOLAPI_API_KEY = Deno.env.get('SOLAPI_API_KEY');
+  const SOLAPI_API_SECRET = Deno.env.get('SOLAPI_API_SECRET');
+  if (!SOLAPI_API_KEY || !SOLAPI_API_SECRET) {
+    return { ok: false, skipped: true, reason: 'Solapi secrets are not configured' };
+  }
+  const authorization = await buildAuthHeader(SOLAPI_API_KEY, SOLAPI_API_SECRET);
+  const response = await fetch(`https://api.solapi.com/messages/v4/groups/${encodeURIComponent(groupId)}/schedule`, {
+    method: 'DELETE',
+    headers: { 'content-type': 'application/json', authorization },
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    return { ok: false, error: result.errorMessage || result.message || `cancel failed (${response.status})`, groupId };
+  }
+  return { ok: true, cancelled: true, groupId };
+}
+
 function jsonResponse(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), { status, headers: { ...corsHeaders, 'content-type': 'application/json' } });
 }
@@ -186,6 +205,12 @@ serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     // 관리자 비밀번호로 보호: 서버사이드(admin-reservations) 호출만 허용, 브라우저/외부 직접 호출 차단.
     await assertAdminPassword(String(body.password || ''));
+
+    // 예약 발송 취소 요청(서버사이드 admin-reservations에서 호출).
+    if (body.cancelGroupId) {
+      const result = await cancelSchedule(String(body.cancelGroupId));
+      return jsonResponse(result);
+    }
 
     const messageType = body.messageType as MessageType;
     const phone = String(body.phone || '');
