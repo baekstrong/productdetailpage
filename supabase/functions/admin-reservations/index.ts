@@ -337,6 +337,35 @@ async function cancelScheduledFollowups(password: string, reservationId: string)
   }
 }
 
+// 재발송 가능한 자동 문자 종류 화이트리스트.
+const RESENDABLE_TYPES = new Set(['payment 안내', 'seat_opened', 'payment_completed', 'class_reminder', 'review_material']);
+
+// 현황판에서 미발송자에게 해당 종류 문자를 재발송한다.
+async function resendMessage(classId: string, messageType: string, reservationIds: string[], password: string) {
+  if (!RESENDABLE_TYPES.has(messageType)) throw new Error('invalid messageType');
+  if (!Array.isArray(reservationIds) || !reservationIds.length) return { ok: true, sent: 0 };
+  const info = await classInfo(classId);
+  let sent = 0;
+  for (const id of reservationIds) {
+    const rows = await supabaseFetch(`reservations?id=eq.${encodeURIComponent(id)}&select=*`);
+    const reservation = Array.isArray(rows) ? rows[0] : rows;
+    if (!reservation) continue;
+    if (messageType === 'class_reminder' || messageType === 'review_material') {
+      const sched = messageType === 'class_reminder'
+        ? kstReminderSchedule(info.class_date)
+        : kstReviewSchedule(info.class_date, info.end_time);
+      if (!sched || sched.atMs <= Date.now()) continue; // 예약 시각이 이미 지났으면 재예약 불가
+      await notify(password, reservation, messageType, { class_date: info.label, place: info.place }, sched.scheduledDate);
+    } else {
+      const values: Record<string, string> = { class_date: info.label, place: info.place };
+      if (messageType === 'payment 안내' || messageType === 'seat_opened') values.payment_url = PAYMENT_LINK;
+      await notify(password, reservation, messageType, values);
+    }
+    sent += 1;
+  }
+  return { ok: true, sent };
+}
+
 async function updateReservation(reservationId: string, updates: Record<string, unknown>, password: string, notifyOverride?: string) {
   const allowedKeys = new Set(['reservation_status', 'payment_status', 'waitlist_order', 'admin_memo']);
   const safeUpdates: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -390,6 +419,14 @@ serve(async (req) => {
     if (action === 'bulkApprove') return jsonResponse(await bulkApprove(String(body.classId || ''), password));
     if (action === 'updateReservation') {
       return jsonResponse(await updateReservation(String(body.reservationId || ''), body.updates || {}, password, body.notify ? String(body.notify) : undefined));
+    }
+    if (action === 'resendMessage') {
+      return jsonResponse(await resendMessage(
+        String(body.classId || ''),
+        String(body.messageType || ''),
+        Array.isArray(body.reservationIds) ? body.reservationIds.map(String) : [],
+        password,
+      ));
     }
 
     return jsonResponse({ error: 'unknown action' }, 400);
