@@ -312,6 +312,7 @@ async function cancelScheduledFollowups(password: string, reservationId: string)
   for (const row of rows) {
     const groupId = String(row.provider_message_id || '');
     let cancelled = !groupId; // groupId가 없으면 원격 예약이 없으므로 로컬만 정리한다.
+    let errorMessage: string | null = null;
     if (groupId) {
       try {
         const res = await fetch(`${url}/functions/v1/solapi-reservations`, {
@@ -321,17 +322,17 @@ async function cancelScheduledFollowups(password: string, reservationId: string)
         });
         const result = await res.json().catch(() => ({ ok: false }));
         cancelled = Boolean(result && result.ok);
-      } catch (_) {
-        // 취소 실패는 무시(베스트 에포트)
+        if (!cancelled) errorMessage = ((result && (result.error || result.reason)) as string) || 'cancel failed';
+      } catch (e) {
+        errorMessage = e instanceof Error ? e.message : 'cancel failed';
       }
     }
-    if (cancelled) {
-      await supabaseFetch(`message_logs?id=eq.${encodeURIComponent(String(row.id))}`, {
-        method: 'PATCH',
-        headers: { prefer: 'return=minimal' },
-        body: JSON.stringify({ status: 'cancelled' }),
-      });
-    }
+    // 성공이든 실패든 항상 기록을 갱신해 '예약 취소 실패로 그대로 발송될' 상태를 관측 가능하게 한다.
+    await supabaseFetch(`message_logs?id=eq.${encodeURIComponent(String(row.id))}`, {
+      method: 'PATCH',
+      headers: { prefer: 'return=minimal' },
+      body: JSON.stringify(cancelled ? { status: 'cancelled' } : { status: 'cancel_failed', error_message: errorMessage }),
+    });
   }
 }
 
