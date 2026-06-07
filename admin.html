@@ -27,29 +27,6 @@
     </section>
 
     <section id="admin-app" class="mt-6 hidden space-y-6">
-      <section class="grid gap-4 md:grid-cols-5">
-        <article class="rounded-2xl bg-white p-5 text-slate-900"><p class="text-xs font-bold text-slate-500">정원</p><p id="summary-capacity" class="mt-1 text-2xl font-extrabold">0</p></article>
-        <article class="rounded-2xl bg-white p-5 text-slate-900"><p class="text-xs font-bold text-slate-500">결제 확정 인원</p><p id="summary-confirmed" class="mt-1 text-2xl font-extrabold">0</p></article>
-        <article class="rounded-2xl bg-white p-5 text-slate-900"><p class="text-xs font-bold text-slate-500">예약 가능 인원</p><p id="summary-available" class="mt-1 text-2xl font-extrabold">0</p></article>
-        <article class="rounded-2xl bg-white p-5 text-slate-900"><p class="text-xs font-bold text-slate-500">대기 인원</p><p id="summary-waitlist" class="mt-1 text-2xl font-extrabold">0</p></article>
-        <article class="rounded-2xl bg-white p-5 text-slate-900"><p class="text-xs font-bold text-slate-500">결제 안내 대기 인원</p><p id="summary-payment-ready" class="mt-1 text-2xl font-extrabold">0</p></article>
-      </section>
-
-      <section class="rounded-3xl bg-white p-6 text-slate-900">
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 class="text-xl font-extrabold">일정 선택</h2>
-            <p class="mt-1 text-sm text-slate-500">현재 등록된 수업 일정과 신청 현황을 기준으로 표시합니다.</p>
-          </div>
-          <button id="refresh-button" class="rounded-xl bg-slate-900 px-5 py-3 font-bold text-white" type="button">새로고침</button>
-        </div>
-        <form data-class-form id="class-form" class="mt-5 grid gap-3 md:grid-cols-4">
-          <select id="class-filter" class="rounded-xl border border-slate-300 px-4 py-3 md:col-span-2"></select>
-          <input id="class-date-display" readonly class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3" placeholder="수업 날짜" />
-          <input id="class-status-display" readonly class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3" placeholder="상태" />
-        </form>
-      </section>
-
       <section class="rounded-3xl bg-white p-6 text-slate-900">
         <div>
           <h2 class="text-xl font-extrabold">수업 일정 등록 / 관리</h2>
@@ -99,6 +76,29 @@
             <tbody id="class-rows"></tbody>
           </table>
         </div>
+      </section>
+
+      <section class="rounded-3xl bg-white p-6 text-slate-900">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 class="text-xl font-extrabold">일정 선택</h2>
+            <p class="mt-1 text-sm text-slate-500">현재 등록된 수업 일정과 신청 현황을 기준으로 표시합니다.</p>
+          </div>
+          <button id="refresh-button" class="rounded-xl bg-slate-900 px-5 py-3 font-bold text-white" type="button">새로고침</button>
+        </div>
+        <form data-class-form id="class-form" class="mt-5 grid gap-3 md:grid-cols-4">
+          <select id="class-filter" class="rounded-xl border border-slate-300 px-4 py-3 md:col-span-2"></select>
+          <input id="class-date-display" readonly class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3" placeholder="수업 날짜" />
+          <input id="class-status-display" readonly class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3" placeholder="상태" />
+        </form>
+      </section>
+
+      <section class="grid gap-4 md:grid-cols-5">
+        <article class="rounded-2xl bg-white p-5 text-slate-900"><p class="text-xs font-bold text-slate-500">정원</p><p id="summary-capacity" class="mt-1 text-2xl font-extrabold">0</p></article>
+        <article class="rounded-2xl bg-white p-5 text-slate-900"><p class="text-xs font-bold text-slate-500">결제 확정 인원</p><p id="summary-confirmed" class="mt-1 text-2xl font-extrabold">0</p></article>
+        <article class="rounded-2xl bg-white p-5 text-slate-900"><p class="text-xs font-bold text-slate-500">예약 가능 인원</p><p id="summary-available" class="mt-1 text-2xl font-extrabold">0</p></article>
+        <article class="rounded-2xl bg-white p-5 text-slate-900"><p class="text-xs font-bold text-slate-500">대기 인원</p><p id="summary-waitlist" class="mt-1 text-2xl font-extrabold">0</p></article>
+        <article class="rounded-2xl bg-white p-5 text-slate-900"><p class="text-xs font-bold text-slate-500">결제 안내 대기 인원</p><p id="summary-payment-ready" class="mt-1 text-2xl font-extrabold">0</p></article>
       </section>
 
       <section class="rounded-3xl bg-white p-6 text-slate-900">
