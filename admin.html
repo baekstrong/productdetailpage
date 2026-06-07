@@ -120,6 +120,7 @@
           <button type="button" data-bulk-action="payment-target" class="rounded-lg bg-orange-100 px-3 py-2 text-sm font-bold text-orange-700">결제 안내 대상으로 지정</button>
           <button type="button" data-bulk-action="payment-complete" class="rounded-lg bg-emerald-100 px-3 py-2 text-sm font-bold text-emerald-700">결제 완료 처리</button>
           <button type="button" data-bulk-action="waitlist" class="rounded-lg bg-blue-100 px-3 py-2 text-sm font-bold text-blue-700">대기 처리</button>
+          <button type="button" data-bulk-action="seat-opened" class="rounded-lg bg-sky-100 px-3 py-2 text-sm font-bold text-sky-700">여석 안내</button>
           <button type="button" data-bulk-action="payment-expired" class="rounded-lg bg-amber-100 px-3 py-2 text-sm font-bold text-amber-700">미결제 마감</button>
           <button type="button" data-bulk-action="cancel" class="rounded-lg bg-slate-200 px-3 py-2 text-sm font-bold text-slate-700">취소 처리</button>
         </div>
@@ -430,6 +431,7 @@
 
     const BULK_ACTION_UPDATES = {
       'payment-target': { reservation_status: 'payment_target', payment_status: 'sent' },
+      'seat-opened': { reservation_status: 'payment_target', payment_status: 'sent' },
       'payment-complete': { reservation_status: 'confirmed', payment_status: 'paid' },
       waitlist: { reservation_status: 'waitlisted' },
       'payment-expired': { reservation_status: 'cancelled', payment_status: 'expired' },
@@ -444,10 +446,12 @@
       if (!ids.length) { message.textContent = '먼저 처리할 신청자를 체크하세요.'; return; }
       if (action === 'cancel' && !window.confirm(`선택한 ${ids.length}명을 취소 처리할까요?`)) return;
       if (action === 'payment-expired' && !window.confirm(`선택한 ${ids.length}명을 미결제 마감 처리하고 안내 문자를 보낼까요?`)) return;
+      if (action === 'seat-opened' && !window.confirm(`선택한 ${ids.length}명에게 여석 안내 문자를 보내고 결제 안내 대상으로 전환할까요?`)) return;
       message.textContent = `선택한 ${ids.length}명을 처리하는 중입니다.`;
       try {
+        const notify = action === 'seat-opened' ? 'seat_opened' : undefined;
         for (const reservationId of ids) {
-          await callAdminApi('updateReservation', { reservationId, updates });
+          await callAdminApi('updateReservation', { reservationId, updates, notify });
         }
         await loadAdminData();
         message.textContent = `선택한 ${ids.length}명을 처리했습니다.`;
