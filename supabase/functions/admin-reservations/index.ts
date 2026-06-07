@@ -280,6 +280,58 @@ async function bulkApprove(classId: string, password: string) {
   return { ok: true, capacity, remaining, approved, waitlisted };
 }
 
+// 이미 발송/예약된 후속 문자 타입 집합(결제 완료 재클릭 시 중복 예약 방지).
+async function alreadyScheduledTypes(reservationId: string): Promise<Set<string>> {
+  const rows = await supabaseFetch(`message_logs?reservation_id=eq.${encodeURIComponent(reservationId)}&message_type=in.(class_reminder,review_material)&status=in.(sent,scheduled)&select=message_type`);
+  const set = new Set<string>();
+  if (Array.isArray(rows)) for (const r of rows) set.add(String(r.message_type));
+  return set;
+}
+
+// 결제 완료 시 리마인드(전날 18시)·복습(종료 시각)을 Solapi 예약 발송으로 등록.
+async function scheduleFollowups(password: string, reservation: Record<string, unknown>, info: { label: string; place: string; class_date: string; end_time: string }) {
+  if (!reservation || !reservation.id || !info.class_date) return;
+  const done = await alreadyScheduledTypes(String(reservation.id));
+  const now = Date.now();
+  const reminder = kstReminderSchedule(info.class_date);
+  if (reminder && reminder.atMs > now && !done.has('class_reminder')) {
+    await notify(password, reservation, 'class_reminder', { class_date: info.label, place: info.place }, reminder.scheduledDate);
+  }
+  const review = kstReviewSchedule(info.class_date, info.end_time);
+  if (review && review.atMs > now && !done.has('review_material')) {
+    await notify(password, reservation, 'review_material', { class_date: info.label, place: info.place }, review.scheduledDate);
+  }
+}
+
+// 취소/만료 시 해당 예약의 예약된 리마인드·복습 문자를 Solapi에서 취소.
+async function cancelScheduledFollowups(password: string, reservationId: string) {
+  if (!reservationId) return;
+  const rows = await supabaseFetch(`message_logs?reservation_id=eq.${encodeURIComponent(reservationId)}&status=eq.scheduled&message_type=in.(class_reminder,review_material)&select=id,provider_message_id`);
+  if (!Array.isArray(rows)) return;
+  const { url, serviceKey } = getSupabaseAdmin();
+  for (const row of rows) {
+    const groupId = String(row.provider_message_id || '');
+    if (!groupId) continue;
+    try {
+      const res = await fetch(`${url}/functions/v1/solapi-reservations`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', apikey: serviceKey, authorization: `Bearer ${serviceKey}` },
+        body: JSON.stringify({ password, cancelGroupId: groupId }),
+      });
+      const result = await res.json().catch(() => ({ ok: false }));
+      if (result && result.ok) {
+        await supabaseFetch(`message_logs?id=eq.${encodeURIComponent(String(row.id))}`, {
+          method: 'PATCH',
+          headers: { prefer: 'return=minimal' },
+          body: JSON.stringify({ status: 'cancelled' }),
+        });
+      }
+    } catch (_) {
+      // 취소 실패는 무시(베스트 에포트)
+    }
+  }
+}
+
 async function updateReservation(reservationId: string, updates: Record<string, unknown>, password: string) {
   const allowedKeys = new Set(['reservation_status', 'payment_status', 'waitlist_order', 'admin_memo']);
   const safeUpdates: Record<string, unknown> = { updated_at: new Date().toISOString() };
