@@ -191,6 +191,14 @@
       return String(value).replace('T', ' ').slice(0, 16);
     }
 
+    // 수업 시작 시각이 이미 지난 '종료된 수업'인지 — 관리자 화면에서 구분 표시용.
+    function isPastClass(c) {
+      const date = c.class_date || c.date, time = c.start_time;
+      if (!date || !time) return false;
+      const start = new Date(date + 'T' + String(time).slice(0, 5));
+      return !isNaN(start.getTime()) && start.getTime() < Date.now();
+    }
+
     function selectedClassId() {
       return document.getElementById('class-filter').value;
     }
@@ -215,7 +223,8 @@
       }
       filter.innerHTML = classes.map((c) => {
         const time = String(c.start_time || '').slice(0, 5);
-        const label = `${c.class_date} ${time} / ${statusLabels[c.status] || c.status} / 정원 ${c.capacity} / 대기 ${c.waitlist_count}`;
+        const past = isPastClass(c) ? ' · 종료' : '';
+        const label = `${c.class_date} ${time} / ${statusLabels[c.status] || c.status} / 정원 ${c.capacity} / 대기 ${c.waitlist_count}${past}`;
         return `<option value="${escapeHtml(c.class_id)}">${escapeHtml(label)}</option>`;
       }).join('');
     }
@@ -311,9 +320,11 @@
       }
       body.innerHTML = classes.map((c) => {
         const time = `${String(c.start_time || '').slice(0, 5)}~${String(c.end_time || '').slice(0, 5)}`;
+        const past = isPastClass(c);
+        const pastBadge = past ? ' <span class="ml-1 rounded-full bg-slate-200 px-2 py-0.5 text-xs font-bold text-slate-500">종료</span>' : '';
         return `
-          <tr class="border-b border-slate-100 align-middle">
-            <td class="p-3 font-bold">${escapeHtml(c.class_date)} ${escapeHtml(time)}</td>
+          <tr class="border-b border-slate-100 align-middle${past ? ' bg-slate-50 text-slate-400' : ''}">
+            <td class="p-3 font-bold">${escapeHtml(c.class_date)} ${escapeHtml(time)}${pastBadge}</td>
             <td class="p-3">${escapeHtml(c.place || '')}</td>
             <td class="p-3">${escapeHtml(c.capacity)}</td>
             <td class="p-3">${escapeHtml(statusLabels[c.status] || c.status)}</td>

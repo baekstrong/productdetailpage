@@ -649,6 +649,14 @@
         return { y: d.getFullYear(), m: d.getMonth(), d: d.getDate() };
       }
 
+      // 수업 시작 시각(class_date + start_time)이 이미 지났는지 — 지난 수업은 달력에서 제외해 예약을 막는다.
+      function isPastClass(c) {
+        var date = c.class_date || c.date, time = c.start_time;
+        if (!date || !time) return false;
+        var start = new Date(date + 'T' + String(time).slice(0, 5));
+        return !isNaN(start.getTime()) && start.getTime() < Date.now();
+      }
+
       function classAnchorHtml(item) {
         var available = availableOf(item);
         var reservable = available > 0 && item.status !== 'closed';
@@ -698,7 +706,7 @@
       function indexClasses(classes) {
         classesByDate = {};
         var normalized = (classes || []).map(normalizeClass).filter(function (item) {
-          return item.is_public !== false && item.status !== 'hidden' && item.date && item.start_time;
+          return item.is_public !== false && item.status !== 'hidden' && item.date && item.start_time && !isPastClass(item);
         });
         window.__publicClasses = normalized;
         normalized.forEach(function (item) {
