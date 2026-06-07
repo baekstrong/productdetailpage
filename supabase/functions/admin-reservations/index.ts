@@ -186,6 +186,7 @@ async function listAdminData() {
   // which the admin still needs to manage). Counts are computed here from the same data.
   const classes = await supabaseFetch('classes?select=*&order=class_date.asc,start_time.asc');
   const reservations = await supabaseFetch('reservations?select=*&order=created_at.asc');
+  const messageLogs = await supabaseFetch('message_logs?select=reservation_id,message_type,status&order=created_at.asc');
   const classRows = Array.isArray(classes) ? classes : [];
   const reservationRows = Array.isArray(reservations) ? reservations : [];
 
@@ -209,7 +210,7 @@ async function listAdminData() {
       payment_ready_count: paymentReady,
     };
   });
-  return { ok: true, classes: summary, reservations: reservationRows };
+  return { ok: true, classes: summary, reservations: reservationRows, message_logs: Array.isArray(messageLogs) ? messageLogs : [] };
 }
 
 async function createClass(input: Record<string, unknown>) {
