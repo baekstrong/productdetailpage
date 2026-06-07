@@ -234,5 +234,25 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("scheduledDate", solapi)
 
 
+    def test_message_status_dashboard(self):
+        admin = read_page("admin.html")
+        admin_fn = read_page("supabase/functions/admin-reservations/index.ts")
+
+        # 현황판 마크업/함수
+        self.assertIn("문자 발송 현황", admin)
+        self.assertIn('id="message-status-rows"', admin)
+        self.assertIn("summarizeMessageStatus", admin)
+        self.assertIn("renderMessageStatus", admin)
+        self.assertIn("data-resend-type", admin)
+        self.assertIn("자동발송 안 함", admin)
+        self.assertIn("수동 발송", admin)
+        self.assertIn("제외:", admin)
+
+        # 서버: message_logs 제공 + 재발송 액션
+        self.assertIn("message_logs", admin_fn)
+        self.assertIn("resendMessage", admin_fn)
+        self.assertIn("action === 'resendMessage'", admin_fn)
+
+
 if __name__ == "__main__":
     unittest.main()
