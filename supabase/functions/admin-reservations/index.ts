@@ -105,6 +105,24 @@ async function notify(password: string, reservation: Record<string, unknown>, me
   await logMessage(String(reservation.id), messageType, phone, result as Record<string, unknown>);
 }
 
+// 예약 발송 시각 계산(KST). scheduledDate는 Solapi에 보낼 "YYYY-MM-DD HH:mm:ss"(KST 로컬),
+// atMs는 과거 여부 비교용 절대시각(ms). Edge 런타임은 UTC이므로 KST는 직접 계산한다.
+function kstReminderSchedule(classDate: string): { scheduledDate: string; atMs: number } | null {
+  const base = new Date(`${classDate}T00:00:00Z`);
+  if (isNaN(base.getTime())) return null;
+  const prev = new Date(base.getTime() - 24 * 60 * 60 * 1000); // 수업 전날
+  const y = prev.getUTCFullYear();
+  const m = String(prev.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(prev.getUTCDate()).padStart(2, '0');
+  return { scheduledDate: `${y}-${m}-${d} 18:00:00`, atMs: new Date(`${y}-${m}-${d}T18:00:00+09:00`).getTime() };
+}
+
+function kstReviewSchedule(classDate: string, endTime: string): { scheduledDate: string; atMs: number } | null {
+  const hm = String(endTime || '').slice(0, 5);
+  if (!classDate || !/^\d{2}:\d{2}$/.test(hm)) return null;
+  return { scheduledDate: `${classDate} ${hm}:00`, atMs: new Date(`${classDate}T${hm}:00+09:00`).getTime() };
+}
+
 // "2026-06-06" + "10:00" + "13:00" → "26년 6월 6일 10시~1시(3시간)"
 function formatSchedule(dateStr: string, startTime: string, endTime: string): string {
   const parts = String(dateStr || '').split('-');
