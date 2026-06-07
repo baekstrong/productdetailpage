@@ -119,6 +119,13 @@ function randomSalt(): string {
   return Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+async function buildAuthHeader(apiKey: string, apiSecret: string): Promise<string> {
+  const date = new Date().toISOString();
+  const salt = randomSalt();
+  const signature = await hmacSha256Hex(apiSecret, date + salt);
+  return `HMAC-SHA256 apiKey=${apiKey}, date=${date}, salt=${salt}, signature=${signature}`;
+}
+
 function onlyDigits(value: string): string {
   return String(value || '').replace(/[^0-9]/g, '');
 }
@@ -132,10 +139,7 @@ async function sendSolapi(to: string, text: string, scheduledAt?: string) {
     return { ok: false, skipped: true, reason: 'Solapi secrets are not configured', to: maskPhone(to), text };
   }
 
-  const date = new Date().toISOString();
-  const salt = randomSalt();
-  const signature = await hmacSha256Hex(SOLAPI_API_SECRET, date + salt);
-  const authorization = `HMAC-SHA256 apiKey=${SOLAPI_API_KEY}, date=${date}, salt=${salt}, signature=${signature}`;
+  const authorization = await buildAuthHeader(SOLAPI_API_KEY, SOLAPI_API_SECRET);
 
   const byteLength = new TextEncoder().encode(text).length;
   const message: Record<string, unknown> = {
