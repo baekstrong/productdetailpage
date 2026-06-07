@@ -151,16 +151,18 @@ function formatSchedule(dateStr: string, startTime: string, endTime: string): st
   return `${yy}년 ${month}월 ${day}일 ${timeText}`;
 }
 
-async function classInfo(classId: string): Promise<{ label: string; place: string }> {
-  if (!classId) return { label: '', place: '' };
+async function classInfo(classId: string): Promise<{ label: string; place: string; class_date: string; end_time: string }> {
+  if (!classId) return { label: '', place: '', class_date: '', end_time: '' };
   const rows = await supabaseFetch(`classes?id=eq.${encodeURIComponent(classId)}&select=class_date,start_time,end_time,place`);
   if (Array.isArray(rows) && rows[0]) {
     return {
       label: formatSchedule(rows[0].class_date, rows[0].start_time, rows[0].end_time),
       place: rows[0].place || '근력학교 고대점',
+      class_date: String(rows[0].class_date || ''),
+      end_time: String(rows[0].end_time || ''),
     };
   }
-  return { label: '', place: '' };
+  return { label: '', place: '', class_date: '', end_time: '' };
 }
 
 const CLASS_FIELDS = ['class_date', 'start_time', 'end_time', 'place', 'capacity', 'is_public', 'status'];
