@@ -32,11 +32,11 @@
   - 어드민 화면에서 기술 용어 제거(Supabase/ADMIN_PASSWORD_HASH 등은 개발자용 JS 주석으로만).
   - 예약 현황 표 줄바꿈 방지(whitespace-nowrap) + text-xs.
 - **보안**: `class_reservation_summary` 뷰에 `is_public = true` 필터 추가(비공개 서버단 차단).
-- **지난 수업 자동 처리(프론트 계산, 시작 시각 기준)** (`index.html` + `admin.html`)
-  - 공통 헬퍼 `isPastClass(c)`: `class_date`+`start_time`이 현재 시각보다 과거면 종료로 판정(로컬/KST 기준).
-  - 고객 달력(`indexClasses`): 지난 수업은 목록에서 제외 → 버튼 미생성 → 클릭·예약 자동 차단.
-  - 관리자 '일정 선택' 드롭다운: 종료된 수업은 아예 제외(`upcomingClasses`)하고, 기본 선택을 가장 가까운 **다음 일정**으로 자동 지정(`renderAdminData`가 종료 수업 선택 시 보정). 새로고침 시 이전 선택이 종료됐으면 복원 안 함.
-  - 관리자 '수업 일정 등록/관리' 표는 종료 수업도 계속 표시(행 muted + `종료` 배지, 기록·삭제용). ⚠️ 단, 종료된 수업의 신청자는 '일정 선택' 드롭다운에서 더 이상 못 고름 → 신청 현황 조회 불가(필요 시 추후 optgroup '종료된 수업' 추가 검토).
+- **지난 수업 처리(프론트 계산, 시작 시각 기준)** (`index.html` + `admin.html`)
+  - 공통 헬퍼 `isPastClass(c)`: `class_date`+`start_time`이 현재 시각보다 과거면 종료로 판정(로컬/KST 기준). admin엔 `upcomingClasses()`(시작 전만 가까운 순) 헬퍼도 추가.
+  - 고객 달력(`classAnchorHtml`): 지난 수업도 **달력에 그대로 표시하되 '종료'로만 표기**(회색·opacity, `data-reservation-date` 없는 `<div>`라 클릭/예약 불가). 아예 숨기지 않음.
+  - 관리자 '일정 선택' 드롭다운: `예정된 수업`(가까운 순) / `종료된 수업`(최근 순) optgroup으로 나눠 **둘 다 선택 가능**(과거 수업도 나중에 조회 가능). 기본 선택은 가장 가까운 **다음 일정**(`renderAdminData`).
+  - 관리자 '수업 일정 등록/관리' 표는 종료 수업도 표시(행 muted + `종료` 배지, 기록·삭제용).
   - DB status 변경/cron 없음(YAGNI).
 - **자동 문자(Solapi) — 코드 완료** (`solapi-reservations` + `admin-reservations`)
   - `solapi-reservations`: 실제 HMAC-SHA256 발송 구현(스텁 아님). 관리자 비밀번호로 보호(요금 폭탄 방지). 키 없으면 안전 skip.

@@ -221,18 +221,26 @@
       return result;
     }
 
+    function classOptionHtml(c) {
+      const time = String(c.start_time || '').slice(0, 5);
+      const label = `${c.class_date} ${time} / ${statusLabels[c.status] || c.status} / 정원 ${c.capacity} / 대기 ${c.waitlist_count}`;
+      return `<option value="${escapeHtml(c.class_id)}">${escapeHtml(label)}</option>`;
+    }
+
     function renderClasses(classes) {
       const filter = document.getElementById('class-filter');
-      const upcoming = upcomingClasses(classes);
-      if (!upcoming.length) {
-        filter.innerHTML = '<option value="">예정된 수업 없음</option>';
+      if (!classes.length) {
+        filter.innerHTML = '<option value="">수업 일정 없음</option>';
         return;
       }
-      filter.innerHTML = upcoming.map((c) => {
-        const time = String(c.start_time || '').slice(0, 5);
-        const label = `${c.class_date} ${time} / ${statusLabels[c.status] || c.status} / 정원 ${c.capacity} / 대기 ${c.waitlist_count}`;
-        return `<option value="${escapeHtml(c.class_id)}">${escapeHtml(label)}</option>`;
-      }).join('');
+      // 예정된 수업(가까운 순) 먼저, 종료된 수업(최근 순)은 아래 그룹으로 — 둘 다 선택 가능.
+      const upcoming = upcomingClasses(classes);
+      const past = classes.filter(isPastClass)
+        .sort((a, b) => (`${a.class_date} ${a.start_time}` > `${b.class_date} ${b.start_time}` ? -1 : 1));
+      let html = '';
+      if (upcoming.length) html += `<optgroup label="예정된 수업">${upcoming.map(classOptionHtml).join('')}</optgroup>`;
+      if (past.length) html += `<optgroup label="종료된 수업">${past.map(classOptionHtml).join('')}</optgroup>`;
+      filter.innerHTML = html;
     }
 
     function renderSummary(classItem) {
@@ -310,11 +318,11 @@
 
     function renderAdminData() {
       const filter = document.getElementById('class-filter');
-      const upcoming = upcomingClasses(adminData.classes);
-      const selectableIds = upcoming.map((c) => c.class_id);
-      // 선택값이 없거나 종료된 수업을 가리키면 가장 가까운 다음 일정으로 보정.
-      if (!filter.value || !selectableIds.includes(filter.value)) {
-        filter.value = upcoming[0] ? upcoming[0].class_id : '';
+      const allIds = adminData.classes.map((c) => c.class_id);
+      // 선택값이 없거나 사라진 수업이면 기본값을 가장 가까운 다음 일정으로(없으면 첫 수업). 과거 수업 수동 선택은 그대로 유지.
+      if (!filter.value || !allIds.includes(filter.value)) {
+        const upcoming = upcomingClasses(adminData.classes);
+        filter.value = (upcoming[0] || adminData.classes[0] || {}).class_id || '';
       }
       const currentClass = adminData.classes.find((item) => item.class_id === selectedClassId());
       renderSummary(currentClass);
@@ -385,7 +393,7 @@
       const previousClassId = selectedClassId();
       renderClasses(adminData.classes);
       renderClassManager(adminData.classes);
-      if (previousClassId && adminData.classes.some((item) => item.class_id === previousClassId && !isPastClass(item))) {
+      if (previousClassId && adminData.classes.some((item) => item.class_id === previousClassId)) {
         document.getElementById('class-filter').value = previousClassId;
       }
       renderAdminData();
