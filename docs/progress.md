@@ -3,7 +3,7 @@
 > 이 문서는 **작업 종료 시마다 갱신**한다. 다음 세션이 이 문서만 읽고 바로 이어서 작업할 수 있도록 유지한다.
 > 상세 아키텍처는 `CLAUDE.md`, 운영/콘텐츠 정책은 `AGENTS.md` 참고.
 
-**마지막 갱신:** 2026-06-07 (지난 수업=고객 달력 '종료' 표기·예약 차단/admin 선택 가능, 달력 시간 시작~종료 표기, admin 섹션 순서 재배치)
+**마지막 갱신:** 2026-06-07 (문자 자동화 마무리 구현: 여석 안내/리마인드/복습 예약발송/취소 연동 — 배포 전)
 
 > 문자 템플릿 정책: `[근력학교]` 접두어 없음(LMS 제목 '케틀벨 원데이 수업'). 결제 마감은 **24시간 고정 문구**("안내 문자를 받은 뒤 24시간 이내")로, 시각 입력 없이 운영. AGENTS.md 9항 톤(여러 줄) 반영. 결제 안내/확정 문자는 수업별 `{장소}`까지 채움.
 
@@ -15,6 +15,11 @@
 
 ## 2. 이번까지 완료한 기능
 
+- **문자 자동화 마무리 — 코드 완료(배포 전)** (`admin.html` + `admin-reservations` + `solapi-reservations`)
+  - **여석 안내(수동)**: 관리자 '여석 안내' 일괄 액션 → 대기자에게 여석 안내 문자 발송 + 결제 안내 대상(payment_target/sent) 전환.
+  - **수업 전 리마인드 + 수업 후 복습 자료(자동 예약발송)**: '결제 완료 처리' 시 Solapi 예약 발송 등록 — 리마인드=수업 전날 18:00(KST), 복습=수업 종료 시각(KST). cron 없이 Solapi `scheduledDate` 사용.
+  - **취소 연동**: '취소 처리'/'미결제 마감' 시 해당 예약의 예약된 리마인드·복습 문자를 Solapi에서 취소(`DELETE .../groups/{groupId}/schedule`).
+  - 중복 방지(message_logs status in sent/scheduled 체크), 과거 시각 가드, groupId를 message_logs.provider_message_id에 저장.
 - **관리자 수업 일정 CRUD** (`admin.html` + `admin-reservations` Edge Function)
   - 등록/수정/공개토글/삭제. `createClass`/`updateClass`/`deleteClass` 액션.
   - 목록은 raw `classes` 테이블을 읽어 숨김·비공개 수업까지 관리자에 표시.
@@ -50,7 +55,7 @@
 - **Edge Function `admin-reservations`**: 최신 코드로 배포됨. **반드시 `--no-verify-jwt`로 배포**(게이트웨이 JWT 검증 끄기 — publishable 키는 JWT 아님, 자체 비밀번호 인증). `supabase/config.toml`에 세 함수 `verify_jwt=false` 명시됨.
 - **DB 뷰**: `is_public` 필터 버전이 라이브에 적용 완료(SQL Editor에서 수동 실행함).
 - **DB 스키마**: `supabase/schema.sql` 기준. 테이블 변경 없음(현재 기능엔 스키마 변경 불필요).
-- **테스트**: `python3 -m unittest tests.test_static_pages` — 11개 통과 유지.
+- **테스트**: `python3 -m unittest tests.test_static_pages` — 12개 통과 유지.
 
 ### 환경 메모 (다음 세션이 배포할 때)
 - 이 PC에 **Supabase CLI는 brew 설치 실패**(CLT/macOS 26 이슈). 대신 바이너리 직접 설치됨:
@@ -61,11 +66,9 @@
 
 ## 4. 다음에 할 일 (우선순위)
 
-1. **문자 실발송(Solapi) — 구현·배포 완료. 실문자 최종 확인만 남음**
-   - 시크릿(`SOLAPI_API_KEY/SECRET/SENDER`, `ADMIN_PASSWORD_HASH`) 설정됨, 두 함수 `--no-verify-jwt` 배포됨.
-   - **남은 것:** admin에서 본인 번호로 신청 1건 → '결제 안내 대상으로 지정' → 실제 문자 수신 확인.
-     안 오면: Solapi 콘솔에서 발신번호 사전등록 상태/잔액/키 유효성 확인, message_logs 테이블의 error_message 확인.
-   - 미구현(추후): 예약 접수 즉시 문자(anon → DB 트리거/웹훅 필요), 수업 전 리마인드(cron), 여석 안내.
+1. **문자 자동화 — 코드 완료. 두 함수 재배포 + 스모크 테스트만 남음**
+   - 자동화 코드(여석 안내/리마인드/복습 예약발송/취소 연동) 구현 완료. 다음 배포 시 새 토큰으로 재로그인 필요.
+   - **남은 것:** `supabase login --token <PAT>` 후 `admin-reservations`, `solapi-reservations` 두 함수 `--no-verify-jwt`로 재배포. 그 뒤 스모크: 결제완료 처리 → 리마인드·복습 예약 2건 생성 확인 / 취소 처리 → 예약 취소 확인 / 여석 안내 → 문자 수신 확인.
 2. **테스트 데이터 정리** — 라이브 DB에 테스트 신청(이쌍칼/구마적, 06-06)과 테스트 수업(06-13 01:00)이 있음. 실제 오픈 전 admin에서 정리.
 3. (선택) 커스텀 도메인 연결.
 4. **공개 전 백관장 승인**(AGENTS.md 14항).
