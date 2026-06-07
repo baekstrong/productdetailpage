@@ -152,11 +152,9 @@
       </section>
 
       <section class="rounded-3xl bg-white p-6 text-slate-900">
-        <h2 class="text-xl font-extrabold">문자 자동 예약</h2>
-        <p class="mt-2 text-sm text-slate-500">예약 단계별로 고객에게 보낼 안내 문자 항목입니다. 실제 문자 자동 발송 연동은 준비 중입니다.</p>
-        <ul class="mt-4 grid gap-2 text-sm md:grid-cols-2">
-          <li>예약 신청 완료 문자</li><li>결제 안내 문자</li><li>여석 안내 문자</li><li>결제 완료 문자</li><li>수업 전 리마인드 문자</li><li>수업 후 복습 자료 문자</li><li>복습 영상 안내 문자는 수동 발송</li>
-        </ul>
+        <h2 class="text-xl font-extrabold">문자 발송 현황</h2>
+        <p class="mt-2 text-sm text-slate-500">선택한 일정 기준으로 단계별 안내 문자의 발송/예약 여부를 보여줍니다. 일부가 누락되면 제외 명단과 재발송 버튼이 나타납니다.</p>
+        <div id="message-status-rows" class="mt-4"></div>
       </section>
     </section>
   </main>
