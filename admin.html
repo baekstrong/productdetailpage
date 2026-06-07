@@ -175,7 +175,7 @@
     // 관리자 비밀번호는 클라이언트에 저장하지 않고, Supabase Edge Function이
     // ADMIN_PASSWORD_HASH(SHA-256) 시크릿과 비교해 서버에서 검증한다.
     let adminPassword = '';
-    let adminData = { classes: [], reservations: [] };
+    let adminData = { classes: [], reservations: [], messageLogs: [] };
 
     const statusLabels = {
       open: '예약 가능', waitlist: '대기 가능', closed: '마감', hidden: '숨김',
@@ -390,7 +390,7 @@
     async function loadAdminData() {
       document.getElementById('admin-message').textContent = '예약 정보를 불러오는 중입니다.';
       const result = await callAdminApi('list');
-      adminData = { classes: result.classes || [], reservations: result.reservations || [] };
+      adminData = { classes: result.classes || [], reservations: result.reservations || [], messageLogs: result.message_logs || [] };
       const previousClassId = selectedClassId();
       renderClasses(adminData.classes);
       renderClassManager(adminData.classes);
