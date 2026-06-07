@@ -311,23 +311,26 @@ async function cancelScheduledFollowups(password: string, reservationId: string)
   const { url, serviceKey } = getSupabaseAdmin();
   for (const row of rows) {
     const groupId = String(row.provider_message_id || '');
-    if (!groupId) continue;
-    try {
-      const res = await fetch(`${url}/functions/v1/solapi-reservations`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', apikey: serviceKey, authorization: `Bearer ${serviceKey}` },
-        body: JSON.stringify({ password, cancelGroupId: groupId }),
-      });
-      const result = await res.json().catch(() => ({ ok: false }));
-      if (result && result.ok) {
-        await supabaseFetch(`message_logs?id=eq.${encodeURIComponent(String(row.id))}`, {
-          method: 'PATCH',
-          headers: { prefer: 'return=minimal' },
-          body: JSON.stringify({ status: 'cancelled' }),
+    let cancelled = !groupId; // groupId가 없으면 원격 예약이 없으므로 로컬만 정리한다.
+    if (groupId) {
+      try {
+        const res = await fetch(`${url}/functions/v1/solapi-reservations`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', apikey: serviceKey, authorization: `Bearer ${serviceKey}` },
+          body: JSON.stringify({ password, cancelGroupId: groupId }),
         });
+        const result = await res.json().catch(() => ({ ok: false }));
+        cancelled = Boolean(result && result.ok);
+      } catch (_) {
+        // 취소 실패는 무시(베스트 에포트)
       }
-    } catch (_) {
-      // 취소 실패는 무시(베스트 에포트)
+    }
+    if (cancelled) {
+      await supabaseFetch(`message_logs?id=eq.${encodeURIComponent(String(row.id))}`, {
+        method: 'PATCH',
+        headers: { prefer: 'return=minimal' },
+        body: JSON.stringify({ status: 'cancelled' }),
+      });
     }
   }
 }
