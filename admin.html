@@ -199,6 +199,12 @@
       return !isNaN(start.getTime()) && start.getTime() < Date.now();
     }
 
+    // 아직 시작 전인 수업만 시작 시각 빠른 순으로 — '일정 선택' 드롭다운/기본 선택용.
+    function upcomingClasses(classes) {
+      return (classes || []).filter((c) => !isPastClass(c))
+        .sort((a, b) => (`${a.class_date} ${a.start_time}` < `${b.class_date} ${b.start_time}` ? -1 : 1));
+    }
+
     function selectedClassId() {
       return document.getElementById('class-filter').value;
     }
@@ -217,14 +223,14 @@
 
     function renderClasses(classes) {
       const filter = document.getElementById('class-filter');
-      if (!classes.length) {
-        filter.innerHTML = '<option value="">수업 일정 없음</option>';
+      const upcoming = upcomingClasses(classes);
+      if (!upcoming.length) {
+        filter.innerHTML = '<option value="">예정된 수업 없음</option>';
         return;
       }
-      filter.innerHTML = classes.map((c) => {
+      filter.innerHTML = upcoming.map((c) => {
         const time = String(c.start_time || '').slice(0, 5);
-        const past = isPastClass(c) ? ' · 종료' : '';
-        const label = `${c.class_date} ${time} / ${statusLabels[c.status] || c.status} / 정원 ${c.capacity} / 대기 ${c.waitlist_count}${past}`;
+        const label = `${c.class_date} ${time} / ${statusLabels[c.status] || c.status} / 정원 ${c.capacity} / 대기 ${c.waitlist_count}`;
         return `<option value="${escapeHtml(c.class_id)}">${escapeHtml(label)}</option>`;
       }).join('');
     }
@@ -303,10 +309,14 @@
     }
 
     function renderAdminData() {
-      if (!document.getElementById('class-filter').value && adminData.classes[0]) {
-        document.getElementById('class-filter').value = adminData.classes[0].class_id;
+      const filter = document.getElementById('class-filter');
+      const upcoming = upcomingClasses(adminData.classes);
+      const selectableIds = upcoming.map((c) => c.class_id);
+      // 선택값이 없거나 종료된 수업을 가리키면 가장 가까운 다음 일정으로 보정.
+      if (!filter.value || !selectableIds.includes(filter.value)) {
+        filter.value = upcoming[0] ? upcoming[0].class_id : '';
       }
-      const currentClass = adminData.classes.find((item) => item.class_id === selectedClassId()) || adminData.classes[0];
+      const currentClass = adminData.classes.find((item) => item.class_id === selectedClassId());
       renderSummary(currentClass);
       renderReservations(reservationsForSelectedClass(), currentClass);
     }
@@ -375,7 +385,7 @@
       const previousClassId = selectedClassId();
       renderClasses(adminData.classes);
       renderClassManager(adminData.classes);
-      if (previousClassId && adminData.classes.some((item) => item.class_id === previousClassId)) {
+      if (previousClassId && adminData.classes.some((item) => item.class_id === previousClassId && !isPastClass(item))) {
         document.getElementById('class-filter').value = previousClassId;
       }
       renderAdminData();
