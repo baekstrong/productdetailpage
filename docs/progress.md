@@ -3,7 +3,7 @@
 > 이 문서는 **작업 종료 시마다 갱신**한다. 다음 세션이 이 문서만 읽고 바로 이어서 작업할 수 있도록 유지한다.
 > 상세 아키텍처는 `CLAUDE.md`, 운영/콘텐츠 정책은 `AGENTS.md` 참고.
 
-**마지막 갱신:** 2026-06-13 (프론트 개편 배치 — index.html 신청 폼이 submit-reservation 함수 경유로 전환(이메일 제거·개인정보 동의 추가), 수업 정보 섹션 동적화, data/classes.json 폴백 삭제 + admin.html 메모 편집·이메일 컬럼 제거·일괄승인 힌트/문자 현황판 갱신. 함수 배포·RLS 정리는 다음 배치)
+**마지막 갱신:** 2026-06-13 (스키마/테스트 배치 — schema.sql에서 anon insert 정책 제거 + 활성 예약 unique 인덱스(`reservations_active_unique`) 추가 + 시드 주석 보강, 1차 구조 개선 계약 테스트 추가(13개). **라이브 DB 반영·함수 배포는 아직 — 다음 배치 최우선**)
 
 > 문자 템플릿 정책: `[근력학교]` 접두어 없음(LMS 제목 '케틀벨 원데이 수업'). 결제 마감은 **24시간 고정 문구**("안내 문자를 받은 뒤 24시간 이내")로, 시각 입력 없이 운영. AGENTS.md 9항 톤(여러 줄) 반영. 결제 안내/확정 문자는 수업별 `{장소}`까지 채움.
 
@@ -15,6 +15,12 @@
 
 ## 2. 이번까지 완료한 기능
 
+- **스키마/테스트 배치 — 코드 완료(2026-06-13, 라이브 DB 미반영)** (`supabase/schema.sql` + `tests/test_static_pages.py`)
+  - `anon can create reservation` insert 정책 삭제 — 예약 신청은 submit-reservation(service_role) 경유만 허용.
+  - 부분 unique 인덱스 `reservations_active_unique` 추가: `(class_id, phone)` where `reservation_status not in ('cancelled','no_show')` — 같은 수업·같은 번호 활성 신청 중복을 DB 차원에서 차단.
+  - 시드 insert 위에 "예시 시드(날짜는 과거일 수 있음, 운영 DB에는 적용하지 말 것)" 주석 추가.
+  - 계약 테스트 `test_public_submit_reservation_function` 추가(submit-reservation 검증·프론트 직접 insert 금지·어드민 메모편집·일괄승인 가드·취소 템플릿·내부 인증·스키마 정책/인덱스) — 총 13개 통과.
+  - **주의: 라이브 DB에는 아직 미적용.** SQL Editor에서 `drop policy "anon can create reservation" on public.reservations;` + unique index 생성 구문을 실행해야 함(전체 schema.sql 재실행 금지 — 시드 포함).
 - **프론트 개편 배치 — 코드 완료(2026-06-13)** (`index.html` + `admin.html` + 계약 테스트)
   - `index.html` 신청 폼: 이메일 입력 삭제, 개인정보 수집·이용 동의 체크박스(필수) 추가. `submitReservationToSupabase()`가 anon REST insert 대신 `functions/v1/submit-reservation` 호출 — 서버의 한글 오류 메시지(`error.serverMessage`)를 그대로 안내, 성공 문구는 "접수 확인 문자를 보내드립니다".
   - 수업 정보 섹션 동적화: `next-class-schedule`/`next-class-availability`/`next-class-place` + `renderNextClassInfo()`가 가장 가까운 다음 일정을 한국어 라벨(`koreanScheduleLabel`)로 표시. 하드코딩 날짜/현황 제거. 다음 일정 없으면 "새 일정 오픈 준비 중".
@@ -80,7 +86,7 @@
 - **Edge Function `admin-reservations`**: 최신 코드로 배포됨. **반드시 `--no-verify-jwt`로 배포**(게이트웨이 JWT 검증 끄기 — publishable 키는 JWT 아님, 자체 비밀번호 인증). `supabase/config.toml`에 세 함수 `verify_jwt=false` 명시됨.
 - **DB 뷰**: `is_public` 필터 버전이 라이브에 적용 완료(SQL Editor에서 수동 실행함).
 - **DB 스키마**: `supabase/schema.sql` 기준. 테이블 변경 없음(현재 기능엔 스키마 변경 불필요).
-- **테스트**: `python3 -m unittest tests.test_static_pages` — 12개 통과 유지(classes.json 폴백 테스트 삭제로 13→12).
+- **테스트**: `python3 -m unittest tests.test_static_pages` — 13개 통과(1차 구조 개선 계약 테스트 추가로 12→13).
 
 ### 환경 메모 (다음 세션이 배포할 때)
 - 이 PC에 **Supabase CLI는 brew 설치 실패**(CLT/macOS 26 이슈). 대신 바이너리 직접 설치됨:
@@ -93,7 +99,7 @@
 
 1. **submit-reservation 후속 배치(다음 배치 담당)**
    - ✅ `index.html`의 `submitReservationToSupabase()` 함수 호출 전환 완료(2026-06-13).
-   - anon insert RLS 정책 제거(schema.sql + 라이브 DB). (admin-auth 함수 코드 삭제는 완료 — 라이브 함수 삭제만 선택 사항.)
+   - ✅ anon insert RLS 정책 제거 + `reservations_active_unique` 인덱스 — schema.sql 반영 완료(2026-06-13). **라이브 DB 적용 필요**: SQL Editor에서 `drop policy "anon can create reservation" on public.reservations;` + 인덱스 생성 구문만 실행(시드 insert는 실행 금지). (admin-auth 함수 코드 삭제는 완료 — 라이브 함수 삭제만 선택 사항.)
    - 배포: `supabase functions deploy submit-reservation --no-verify-jwt` + `solapi-reservations`·`admin-reservations` 재배포(내부 호출 인증 + 동작 개선 반영). **프론트는 이미 함수 경유로 전환됐으므로 submit-reservation 배포 전까지 실 신청이 막힘 — 배포를 우선 처리.**
 2. **문자 자동화 + 현황판 — 구현·배포 완료. 실발송 수동 검증만 남음**
    - 세 Edge Function 모두 최신 코드로 배포됨(2026-06-07). 인증 게이트 스모크 통과.

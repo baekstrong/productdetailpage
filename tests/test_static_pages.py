@@ -245,6 +245,42 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("resendMessage", admin_fn)
         self.assertIn("action === 'resendMessage'", admin_fn)
 
+    def test_public_submit_reservation_function(self):
+        fn = read_page("supabase/functions/submit-reservation/index.ts")
+        html = read_page("index.html")
+        admin = read_page("admin.html")
+        admin_fn = read_page("supabase/functions/admin-reservations/index.ts")
+        solapi = read_page("supabase/functions/solapi-reservations/index.ts")
+        schema = read_page("supabase/schema.sql")
+
+        # 공개 신청 함수: 동의·번호 검증·중복 차단·접수 문자·service_role
+        self.assertIn("privacy_consent", fn)
+        self.assertIn("^010\\d{8}$", fn)
+        self.assertIn("reservation_status=not.in.(cancelled,no_show)", fn)
+        self.assertIn("reservation_received", fn)
+        self.assertIn("SUPABASE_SERVICE_ROLE_KEY", fn)
+
+        # 프론트는 함수 호출만, 직접 insert 금지
+        self.assertIn("functions/v1/submit-reservation", html)
+        self.assertNotIn("rest/v1/reservations", html)
+
+        # 어드민: 메모 편집 + 결제 안내 중 배지
+        self.assertIn("data-memo-edit", admin)
+        self.assertIn("결제 안내 중", admin)
+
+        # 서버: 일괄승인 재클릭 가드 + 취소 문자 + 메모만 수정 시 미발송 가드
+        self.assertIn("paymentTargetCount", admin_fn)
+        self.assertIn("reservation_cancelled", admin_fn)
+        self.assertIn("statusChanged", admin_fn)
+
+        # 문자: 취소 템플릿 + 내부(service_role) 인증
+        self.assertIn("예약 취소 안내 문자", solapi)
+        self.assertIn("isInternalCall", solapi)
+
+        # 스키마: anon insert 정책 제거 + 중복 방지 인덱스
+        self.assertIn("reservations_active_unique", schema)
+        self.assertNotIn("anon can create reservation", schema)
+
 
 if __name__ == "__main__":
     unittest.main()
