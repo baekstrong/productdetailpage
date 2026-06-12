@@ -263,6 +263,9 @@
       if (r.reservation_status === 'cancelled' || r.reservation_status === 'no_show') {
         return '<span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-500">취소</span>';
       }
+      if (r.reservation_status === 'payment_target') {
+        return '<span class="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-bold text-orange-700">결제 안내 중</span>';
+      }
       const rank = liveRank[r.id];
       if (rank === undefined) return '';
       if (rank < remaining) {
@@ -289,7 +292,8 @@
       rows.forEach((r) => {
         const isConfirmed = r.reservation_status === 'confirmed' || r.payment_status === 'paid';
         const isDead = r.reservation_status === 'cancelled' || r.reservation_status === 'no_show';
-        if (!isConfirmed && !isDead) { rank += 1; liveRank[r.id] = rank; }
+        const isPaymentTarget = r.reservation_status === 'payment_target';
+        if (!isConfirmed && !isDead && !isPaymentTarget) { rank += 1; liveRank[r.id] = rank; }
       });
       if (!rows.length) {
         body.innerHTML = '<tr><td class="p-5 text-center text-slate-500" colspan="12">이 수업일 예약자가 아직 없습니다.</td></tr>';
@@ -566,7 +570,7 @@
       const message = document.getElementById('admin-message');
       if (!classId) { message.textContent = '먼저 수업을 선택하세요.'; return; }
       const currentClass = adminData.classes.find((item) => item.class_id === classId);
-      const remaining = currentClass ? Math.max(Number(currentClass.capacity || 0) - Number(currentClass.confirmed_count || 0), 0) : 0;
+      const remaining = currentClass ? Math.max(Number(currentClass.capacity || 0) - Number(currentClass.confirmed_count || 0) - Number(currentClass.payment_ready_count || 0), 0) : 0;
       if (!window.confirm(`이 수업의 신청자를 선착순으로 ${remaining}명까지 '결제 안내 대상'으로 지정하고, 초과분은 자동 대기 처리합니다. 진행할까요?`)) return;
       message.textContent = '선착순 일괄 승인 처리 중입니다.';
       try {
