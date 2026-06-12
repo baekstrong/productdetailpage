@@ -3,7 +3,7 @@
 > 이 문서는 **작업 종료 시마다 갱신**한다. 다음 세션이 이 문서만 읽고 바로 이어서 작업할 수 있도록 유지한다.
 > 상세 아키텍처는 `CLAUDE.md`, 운영/콘텐츠 정책은 `AGENTS.md` 참고.
 
-**마지막 갱신:** 2026-06-13 (공개 신청 Edge Function `submit-reservation` 신설 + solapi 내부 호출 인증 — 서버 측 선행 단계, 배포·프론트 연동은 다음 배치)
+**마지막 갱신:** 2026-06-13 (admin-reservations 동작 개선 — 취소 안내 문자·일괄승인 재클릭 가드·메모수정 시 문자 미발송·리마인드 skip 로그 + admin-auth 죽은 코드 제거. 배포는 다음 배치)
 
 > 문자 템플릿 정책: `[근력학교]` 접두어 없음(LMS 제목 '케틀벨 원데이 수업'). 결제 마감은 **24시간 고정 문구**("안내 문자를 받은 뒤 24시간 이내")로, 시각 입력 없이 운영. AGENTS.md 9항 톤(여러 줄) 반영. 결제 안내/확정 문자는 수업별 `{장소}`까지 채움.
 
@@ -15,6 +15,14 @@
 
 ## 2. 이번까지 완료한 기능
 
+- **admin-reservations 동작 개선 — 코드 완료(2026-06-13, 재배포 필요)** (`supabase/functions/admin-reservations/index.ts`)
+  - `updateReservation`: 이번 요청이 `reservation_status`/`payment_status`를 실제로 바꿨을 때만 문자 분기 실행(메모만 수정해도 문자가 재발송되던 사고 방지).
+  - 취소 처리 시 `reservation_cancelled` 취소 안내 문자 발송 + 예약된 리마인드·복습 취소(미결제 마감은 기존 `payment_expired` 문자 유지).
+  - `bulkApprove` 재클릭 가드: 이미 결제 안내를 받은 `payment_target`을 자리 점유로 차감하고 후보에서 제외(중복 문자·초과 승인 방지).
+  - `scheduleFollowups`: 발송 시각이 이미 지난 리마인드/복습은 조용히 빠지지 않고 message_logs에 `skipped`로 기록(현황판 노출).
+  - `RESENDABLE_TYPES`에 `reservation_received`/`reservation_cancelled` 추가. `cancelScheduledFollowups`는 Bearer service_role 인증이므로 body의 평문 비밀번호 전송 제거.
+  - `submit-reservation`의 `isPastClassKst`: 날짜/시각 파싱 실패 시 '종료된 수업' 오인 차단 대신 명시적 오류 throw.
+- **admin-auth 죽은 코드 제거(2026-06-13)** — `supabase/functions/admin-auth/` 삭제(1시간 토큰 발급하나 어디서도 미사용 — admin.html은 매 요청 비밀번호 전송 방식). admin.html의 `authEndpoint` 참조 제거, 계약 테스트 2건 admin-reservations 기준으로 수정. 라이브 함수 삭제는 선택: `supabase functions delete admin-auth --project-ref vjoxzbxcylqyhxezxiuj`. (CLAUDE.md의 admin-auth 언급 정리는 마지막 문서 배치 담당.)
 - **공개 신청 엔드포인트 `submit-reservation` 신설 — 코드 완료(2026-06-13, 배포 전)** (`supabase/functions/submit-reservation/index.ts`)
   - 검증(이름·010 11자리·개인정보 동의·class_id) → 신청 가능 수업 확인(공개+숨김 아님+시작 전) → 같은 수업 활성 신청 중복 차단(409) → service_role insert → 접수 확인 문자(베스트 에포트, message_logs 기록).
   - anon 직접 insert를 대체하는 작업의 **서버 측 선행 단계**. index.html 프론트 연동·anon insert 정책 제거·함수 배포는 **다음 배치** 담당.
@@ -79,8 +87,8 @@
 
 1. **submit-reservation 후속 배치(다음 배치 담당)**
    - `index.html`의 `submitReservationToSupabase()`를 anon insert → `submit-reservation` 함수 호출로 교체.
-   - anon insert RLS 정책 제거(schema.sql + 라이브 DB), admin-auth 함수 삭제.
-   - 배포: `supabase functions deploy submit-reservation --no-verify-jwt` + `solapi-reservations` 재배포(내부 호출 인증 반영).
+   - anon insert RLS 정책 제거(schema.sql + 라이브 DB). (admin-auth 함수 코드 삭제는 완료 — 라이브 함수 삭제만 선택 사항.)
+   - 배포: `supabase functions deploy submit-reservation --no-verify-jwt` + `solapi-reservations`·`admin-reservations` 재배포(내부 호출 인증 + 이번 동작 개선 반영).
 2. **문자 자동화 + 현황판 — 구현·배포 완료. 실발송 수동 검증만 남음**
    - 세 Edge Function 모두 최신 코드로 배포됨(2026-06-07). 인증 게이트 스모크 통과.
    - **남은 것(운영자 폰으로):** ① 결제완료 처리 → message_logs에 리마인드·복습 2건 `scheduled` + Solapi 콘솔 예약 2건 / ② 취소 처리 → 두 건 `cancelled` + Solapi 예약 사라짐 / ③ 여석 안내 → 문자 수신 + payment_target 전환 / ④ 현황판에서 발송/예약/제외 표기·재발송 버튼 동작.
