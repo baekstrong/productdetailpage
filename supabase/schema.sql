@@ -75,11 +75,13 @@ on public.classes for select
 to anon
 using (is_public = true and status <> 'hidden');
 
--- Anonymous users may submit their own reservation request.
-create policy "anon can create reservation"
-on public.reservations for insert
-to anon
-with check (true);
+-- 예약 신청은 submit-reservation Edge Function(service_role) 경유만 허용한다.
+-- (과거의 anon 직접 insert 정책은 제거됨 — 검증·중복차단·접수 문자를 서버에서 일원화)
+
+-- 같은 수업에 같은 번호의 활성 신청(취소/불참 제외)은 1건만 — 중복 신청 DB 차원 차단.
+create unique index if not exists reservations_active_unique
+  on public.reservations (class_id, phone)
+  where reservation_status not in ('cancelled', 'no_show');
 
 -- Direct reservation reads are blocked for anon; admin access should go through Edge Functions with service role.
 create policy "anon cannot read reservations"
@@ -93,6 +95,7 @@ to anon
 using (false);
 
 -- Seed example classes. Safe to run repeatedly if dates are unique enough for this simple project.
+-- 예시 시드(날짜는 과거일 수 있음, 운영 DB에는 적용하지 말 것)
 insert into public.classes (class_date, start_time, end_time, place, capacity, is_public, status)
 values
   ('2026-06-06', '10:00', '13:00', '근력학교 고대점', 6, true, 'open'),
