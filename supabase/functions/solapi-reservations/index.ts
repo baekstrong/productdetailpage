@@ -12,7 +12,8 @@ type MessageType =
   | 'payment_completed'
   | 'payment_expired'
   | 'class_reminder'
-  | 'review_material';
+  | 'review_material'
+  | 'reservation_cancelled';
 
 const templates: Record<MessageType, string> = {
   // 예약 신청 완료 문자
@@ -76,6 +77,13 @@ const templates: Record<MessageType, string> = {
 https://www.notion.so/easystrength/Part-2-9910eb46d55f40efad4f986986f5876d?source=copy_link
 
 복습 영상 링크는 별도로 안내드리겠습니다`,
+  // 예약 취소 안내 문자
+  reservation_cancelled: `케틀벨 원데이 수업 예약이 취소 처리되었습니다
+
+수업 일정: {class_date}
+
+다시 수강을 원하시면 예약 페이지에서 신청해 주세요
+좋은 일정으로 다시 만나 뵙겠습니다`,
   // 복습 영상은 백관장 수동 발송
 };
 
@@ -203,8 +211,12 @@ serve(async (req) => {
 
   try {
     const body = await req.json().catch(() => ({}));
-    // 관리자 비밀번호로 보호: 서버사이드(admin-reservations) 호출만 허용, 브라우저/외부 직접 호출 차단.
-    await assertAdminPassword(String(body.password || ''));
+    // 인증: ① 서버사이드 내부 호출(Bearer service_role key) 또는 ② 관리자 비밀번호.
+    // service_role key는 서버(Edge Function) 환경에서만 알 수 있으므로 내부 호출 증명이 된다.
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+    const authHeader = req.headers.get('authorization') || '';
+    const isInternalCall = serviceKey.length > 0 && timingSafeEqual(authHeader, `Bearer ${serviceKey}`);
+    if (!isInternalCall) await assertAdminPassword(String(body.password || ''));
 
     // 예약 발송 취소 요청(서버사이드 admin-reservations에서 호출).
     if (body.cancelGroupId) {
