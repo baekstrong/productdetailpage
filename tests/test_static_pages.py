@@ -1,4 +1,3 @@
-import json
 import unittest
 from pathlib import Path
 
@@ -31,7 +30,6 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("예약 가능 일정", html)
         self.assertIn("calendar-grid", html)
         self.assertIn("data-reservation-date", html)
-        self.assertIn("data/classes.json", html)
         self.assertIn("fetch", html)
         self.assertIn("renderScheduleFromClasses", html)
         self.assertIn("예약 신청하기", html)
@@ -39,9 +37,12 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("submitReservationToSupabase", html)
         self.assertIn("name=\"applicant_name\"", html)
         self.assertIn("name=\"phone\"", html)
-        self.assertIn("name=\"email\"", html)
+        self.assertNotIn("name=\"email\"", html)
         self.assertIn("name=\"kettlebell_experience\"", html)
         self.assertIn("name=\"reason\"", html)
+        self.assertIn("privacy_consent", html)
+        self.assertIn("functions/v1/submit-reservation", html)
+        self.assertNotIn("rest/v1/reservations", html)
         self.assertIn("예약 가능 인원", html)
         self.assertIn("대기 인원", html)
         self.assertIn("날짜를 선택하면 예약 신청 화면으로 이동합니다", html)
@@ -67,10 +68,13 @@ class StaticPageTests(unittest.TestCase):
     def test_class_info_shows_next_one_day_class_schedule(self):
         html = read_page("index.html")
 
-        self.assertIn("다음 원데이 수업", html)
-        self.assertIn("6월 6일(토) 오전 10시~오후 1시", html)
-        self.assertIn("예약 가능 인원 6명", html)
-        self.assertIn("대기 인원 14명", html)
+        # 수업 정보는 하드코딩 대신 Supabase 일정으로 동적 표시한다.
+        self.assertIn('id="next-class-schedule"', html)
+        self.assertIn('id="next-class-availability"', html)
+        self.assertIn('id="next-class-place"', html)
+        self.assertIn("renderNextClassInfo", html)
+        self.assertNotIn("6월 6일(토)", html)
+        self.assertNotIn("대기 인원 14명", html)
         self.assertNotIn("5월 25일(월) 오후 1~4시", html)
 
     def test_admin_schedule_management_plan_exists(self):
@@ -173,19 +177,6 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("public.reservations", edge)
         self.assertIn("timingSafeEqual", edge)
         self.assertNotIn("8156", edge)
-
-    def test_classes_json_exists_for_public_calendar(self):
-        data = json.loads(read_page("data/classes.json"))
-
-        self.assertIn("classes", data)
-        self.assertGreaterEqual(len(data["classes"]), 3)
-        first = data["classes"][0]
-        self.assertIn("id", first)
-        self.assertIn("date", first)
-        self.assertIn("capacity", first)
-        self.assertIn("confirmed_count", first)
-        self.assertIn("waitlist_count", first)
-        self.assertIn("is_public", first)
 
     def test_supabase_schema_and_edge_functions_are_documented(self):
         schema = read_page("supabase/schema.sql")

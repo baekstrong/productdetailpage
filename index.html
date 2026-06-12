@@ -487,7 +487,7 @@
           </div>
           <div class="py-5 sm:py-6 sm:border-b sm:border-ink-200 flex items-start justify-between gap-6">
             <dt class="text-sm font-semibold text-ink-500">다음 원데이 수업</dt>
-            <dd class="text-right text-ink-900 font-semibold">6월 6일(토) 오전 10시~오후 1시</dd>
+            <dd id="next-class-schedule" class="text-right text-ink-900 font-semibold">일정 확인 중</dd>
           </div>
           <div class="py-5 sm:py-6 sm:border-b sm:border-ink-200 flex items-start justify-between gap-6">
             <dt class="text-sm font-semibold text-ink-500">가격</dt>
@@ -495,7 +495,7 @@
           </div>
           <div class="py-5 sm:py-6 sm:border-b sm:border-ink-200 flex items-start justify-between gap-6">
             <dt class="text-sm font-semibold text-ink-500">장소</dt>
-            <dd class="text-right text-ink-900 font-semibold">근력학교 고대점</dd>
+            <dd id="next-class-place" class="text-right text-ink-900 font-semibold">근력학교 고대점</dd>
           </div>
           <div class="py-5 sm:py-6 sm:border-b sm:border-ink-200 flex items-start justify-between gap-6">
             <dt class="text-sm font-semibold text-ink-500">정원</dt>
@@ -503,7 +503,7 @@
           </div>
           <div class="py-5 sm:py-6 sm:border-b sm:border-ink-200 flex items-start justify-between gap-6">
             <dt class="text-sm font-semibold text-ink-500">현재 신청 현황</dt>
-            <dd class="text-right text-ink-900 font-semibold">예약 가능 인원 6명 · 대기 인원 14명</dd>
+            <dd id="next-class-availability" class="text-right text-ink-900 font-semibold">일정 확인 중</dd>
           </div>
           <div class="py-5 sm:py-6 flex items-start justify-between gap-6">
             <dt class="text-sm font-semibold text-ink-500">준비물</dt>
@@ -560,9 +560,12 @@
           <input type="hidden" name="class_date" id="reservation-class-date" />
           <label class="grid gap-1 text-sm font-bold text-ink-700">이름<input name="applicant_name" autocomplete="name" required class="rounded-xl border border-ink-200 px-4 py-3 font-normal" /></label>
           <label class="grid gap-1 text-sm font-bold text-ink-700">휴대폰 번호<input name="phone" inputmode="tel" autocomplete="tel" required placeholder="01012345678" class="rounded-xl border border-ink-200 px-4 py-3 font-normal" /></label>
-          <label class="grid gap-1 text-sm font-bold text-ink-700">이메일<input name="email" type="email" autocomplete="email" class="rounded-xl border border-ink-200 px-4 py-3 font-normal" /></label>
           <label class="grid gap-1 text-sm font-bold text-ink-700">케틀벨 경험 여부<select name="kettlebell_experience" class="rounded-xl border border-ink-200 px-4 py-3 font-normal"><option>처음입니다</option><option>유튜브 보고 해봤습니다</option><option>수업을 들어본 적 있습니다</option></select></label>
           <label class="grid gap-1 text-sm font-bold text-ink-700">수업을 듣고 싶은 이유<textarea name="reason" rows="4" class="rounded-xl border border-ink-200 px-4 py-3 font-normal"></textarea></label>
+          <label class="flex items-start gap-2 text-sm text-ink-700">
+            <input type="checkbox" name="privacy_consent" required class="mt-1 h-4 w-4" />
+            <span>개인정보 수집·이용에 동의합니다. (이름·휴대폰 번호는 수업 예약 확인과 안내 문자 발송에만 사용하며, 수업 종료 후 파기합니다)</span>
+          </label>
           <button type="submit" class="inline-flex items-center justify-center rounded-xl bg-brand-500 px-6 py-3.5 text-base font-bold text-white hover:bg-brand-600 transition">예약 신청하기</button>
           <p id="reservation-submit-message" class="text-sm text-ink-500">신청 후 결제 안내는 문자로 보내드립니다.</p>
         </form>
@@ -638,7 +641,8 @@
           available_count: item.available_count === undefined ? undefined : Number(item.available_count || 0),
           waitlist_count: Number(item.waitlist_count || 0),
           is_public: item.is_public,
-          status: item.status
+          status: item.status,
+          place: item.place
         };
       }
 
@@ -746,6 +750,40 @@
         if (empty) empty.classList.toggle('hidden', Object.keys(classesByDate).length > 0);
         view = defaultView();
         renderMonth();
+        renderNextClassInfo();
+      }
+
+      function koreanScheduleLabel(item) {
+        var parts = item.date.split('-');
+        var d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        var dow = ['일', '월', '화', '수', '목', '금', '토'][d.getDay()];
+        function half(t) {
+          var h = Number(t.slice(0, 2)), m = Number(t.slice(3, 5));
+          var ampm = h < 12 ? '오전' : '오후';
+          var h12 = h % 12 === 0 ? 12 : h % 12;
+          return ampm + ' ' + h12 + '시' + (m ? ' ' + m + '분' : '');
+        }
+        var label = Number(parts[1]) + '월 ' + Number(parts[2]) + '일(' + dow + ') ' + half(item.start_time);
+        if (item.end_time) label += '~' + half(item.end_time);
+        return label;
+      }
+
+      function renderNextClassInfo() {
+        var scheduleEl = document.getElementById('next-class-schedule');
+        var availabilityEl = document.getElementById('next-class-availability');
+        var placeEl = document.getElementById('next-class-place');
+        if (!scheduleEl) return;
+        var upcoming = (window.__publicClasses || []).filter(function (c) { return !isPastClass(c); })
+          .sort(function (a, b) { return (a.date + a.start_time) < (b.date + b.start_time) ? -1 : 1; });
+        var next = upcoming[0];
+        if (!next) {
+          scheduleEl.textContent = '새 일정 오픈 준비 중';
+          if (availabilityEl) availabilityEl.textContent = '새 일정이 열리면 달력에서 신청할 수 있습니다';
+          return;
+        }
+        scheduleEl.textContent = koreanScheduleLabel(next);
+        if (availabilityEl) availabilityEl.textContent = '예약 가능 인원 ' + availableOf(next) + '명 · 대기 인원 ' + next.waitlist_count + '명';
+        if (placeEl && next.place) placeEl.textContent = next.place;
       }
 
       async function submitReservationToSupabase(payload) {
@@ -755,12 +793,17 @@
           window.__lastReservationPayload = payload;
           return { ok: true, demo: true };
         }
-        var response = await fetch(supabaseUrl + '/rest/v1/reservations', {
+        var response = await fetch(supabaseUrl + '/functions/v1/submit-reservation', {
           method: 'POST',
-          headers: { 'content-type': 'application/json', apikey: supabaseAnonKey, authorization: 'Bearer ' + supabaseAnonKey, prefer: 'return=minimal' },
+          headers: { 'content-type': 'application/json', apikey: supabaseAnonKey, authorization: 'Bearer ' + supabaseAnonKey },
           body: JSON.stringify(payload)
         });
-        if (!response.ok) throw new Error('reservation submit failed');
+        var result = await response.json().catch(function () { return {}; });
+        if (!response.ok || result.ok === false) {
+          var err = new Error(result.error || 'reservation submit failed');
+          err.serverMessage = result.error;
+          throw err;
+        }
         return { ok: true };
       }
       window.submitReservationToSupabase = submitReservationToSupabase;
@@ -768,19 +811,24 @@
       async function loadClasses() {
         var supabaseUrl = window.SUPABASE_URL || '';
         var supabaseAnonKey = window.SUPABASE_ANON_KEY || '';
-        if (supabaseUrl && supabaseAnonKey) {
-          var response = await fetch(supabaseUrl + '/rest/v1/class_reservation_summary?select=*&order=class_date.asc,start_time.asc', {
-            headers: { apikey: supabaseAnonKey, authorization: 'Bearer ' + supabaseAnonKey }
-          });
-          if (response.ok) return await response.json();
-        }
-        var fallback = await fetch('data/classes.json').then(function (response) { return response.json(); });
-        return fallback.classes || [];
+        if (!supabaseUrl || !supabaseAnonKey) throw new Error('classes load failed');
+        var response = await fetch(supabaseUrl + '/rest/v1/class_reservation_summary?select=*&order=class_date.asc,start_time.asc', {
+          headers: { apikey: supabaseAnonKey, authorization: 'Bearer ' + supabaseAnonKey }
+        });
+        if (!response.ok) throw new Error('classes load failed');
+        return await response.json();
       }
 
       loadClasses()
         .then(function (classes) { renderScheduleFromClasses(classes || []); })
-        .catch(function () { renderScheduleFromClasses([]); });
+        .catch(function () {
+          renderScheduleFromClasses([]);
+          var empty = document.getElementById('calendar-empty');
+          if (empty) {
+            empty.textContent = '일정을 불러오지 못했습니다. 잠시 후 새로고침해 주세요.';
+            empty.classList.remove('hidden');
+          }
+        });
 
       function shiftMonth(delta) {
         var base = view || defaultView();
@@ -848,15 +896,16 @@
           var formData = new FormData(reservationForm);
           var payload = Object.fromEntries(formData.entries());
           delete payload.class_date;
+          payload.privacy_consent = payload.privacy_consent === 'on';
           var message = document.getElementById('reservation-submit-message');
           try {
             if (!payload.class_id) throw new Error('class is not selected');
             await submitReservationToSupabase(payload);
-            if (message) message.textContent = '예약 신청이 접수되었습니다. 결제 안내를 문자로 보내드립니다.';
+            if (message) message.textContent = '예약 신청이 접수되었습니다. 접수 확인 문자를 보내드립니다.';
             reservationForm.reset();
             setTimeout(closeReservationModal, 1800);
           } catch (error) {
-            if (message) message.textContent = '신청 저장에 실패했습니다. 잠시 후 다시 시도해주세요.';
+            if (message) message.textContent = error.serverMessage || '신청 저장에 실패했습니다. 잠시 후 다시 시도해주세요.';
           }
         });
       }
