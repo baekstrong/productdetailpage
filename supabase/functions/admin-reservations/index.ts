@@ -398,6 +398,8 @@ async function updateReservation(reservationId: string, updates: Record<string, 
   // (메모만 수정해도 현재 상태 기준으로 문자가 재발송되는 사고 방지)
   const statusChanged = 'reservation_status' in safeUpdates || 'payment_status' in safeUpdates;
   if (updated && statusChanged) {
+    // 분기 우선순위: 미결제 마감은 reservation_status='cancelled'+payment_status='expired'가
+    // 한 번에 오므로 expired를 먼저 매칭한다(만료 안내만 발송, 일반 취소 문자는 보내지 않음).
     if (updated.payment_status === 'expired') {
       const info = await classInfo(String(updated.class_id || ''));
       await notify(password, updated, 'payment_expired', { class_date: info.label, place: info.place });

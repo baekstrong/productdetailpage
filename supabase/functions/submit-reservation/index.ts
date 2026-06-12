@@ -131,7 +131,14 @@ serve(async (req) => {
     if (!classRow || classRow.is_public !== true || classRow.status === 'hidden') {
       return jsonResponse({ ok: false, error: '신청할 수 없는 수업입니다.' }, 400);
     }
-    if (isPastClassKst(String(classRow.class_date), String(classRow.start_time))) {
+    let isPast = false;
+    try {
+      isPast = isPastClassKst(String(classRow.class_date), String(classRow.start_time));
+    } catch (_) {
+      // 수업 시각 데이터 이상 — 내부 값 노출 없이 일반 메시지로 차단.
+      return jsonResponse({ ok: false, error: '신청할 수 없는 수업입니다.' }, 400);
+    }
+    if (isPast) {
       return jsonResponse({ ok: false, error: '이미 종료된 수업입니다.' }, 400);
     }
 
