@@ -69,7 +69,8 @@ function formatSchedule(dateStr: string, startTime: string, endTime: string): st
 function isPastClassKst(classDate: string, startTime: string): boolean {
   const hm = String(startTime || '').slice(0, 5);
   const start = new Date(`${classDate}T${hm}:00+09:00`);
-  return isNaN(start.getTime()) || start.getTime() < Date.now();
+  if (isNaN(start.getTime())) throw new Error(`invalid class datetime: ${classDate} ${startTime}`);
+  return start.getTime() < Date.now();
 }
 
 async function sendReceivedSms(reservationId: string, phone: string, classLabel: string) {
