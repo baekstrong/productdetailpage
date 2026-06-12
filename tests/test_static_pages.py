@@ -148,7 +148,7 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("휴대폰 번호 마스킹", html)
         self.assertIn("결제 완료 처리", html)
         self.assertIn("대기 순번 조정", html)
-        self.assertIn("supabase/functions/admin-auth", html)
+        self.assertNotIn("admin-auth", html)
         self.assertIn("supabase/functions/admin-reservations", html)
         self.assertIn("supabase/functions/solapi-reservations", html)
         self.assertIn("loadAdminData", html)
@@ -189,15 +189,15 @@ class StaticPageTests(unittest.TestCase):
 
     def test_supabase_schema_and_edge_functions_are_documented(self):
         schema = read_page("supabase/schema.sql")
-        auth = read_page("supabase/functions/admin-auth/index.ts")
+        admin_fn = read_page("supabase/functions/admin-reservations/index.ts")
         solapi = read_page("supabase/functions/solapi-reservations/index.ts")
 
         self.assertIn("create table if not exists public.classes", schema)
         self.assertIn("create table if not exists public.reservations", schema)
         self.assertIn("alter table public.classes enable row level security", schema)
         self.assertIn("alter table public.reservations enable row level security", schema)
-        self.assertIn("ADMIN_PASSWORD_HASH", auth)
-        self.assertIn("crypto.subtle.digest", auth)
+        self.assertIn("ADMIN_PASSWORD_HASH", admin_fn)
+        self.assertIn("crypto.subtle.digest", admin_fn)
         self.assertIn("SOLAPI_API_KEY", solapi)
         self.assertIn("SOLAPI_API_SECRET", solapi)
         self.assertIn("예약 신청 완료 문자", solapi)

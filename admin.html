@@ -166,7 +166,6 @@
   <script type="module">
     const SUPABASE_URL = window.SUPABASE_URL || '';
     const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || '';
-    const authEndpoint = 'supabase/functions/admin-auth';
     const adminReservationsEndpoint = 'supabase/functions/admin-reservations';
     const solapiEndpoint = 'supabase/functions/solapi-reservations';
     // [개발자 메모] 보안 모델 — 운영자 화면에는 노출하지 않는다.
@@ -651,7 +650,7 @@
       }
     });
 
-    window.__adminEndpoints = { authEndpoint, adminReservationsEndpoint, solapiEndpoint };
+    window.__adminEndpoints = { adminReservationsEndpoint, solapiEndpoint };
     window.callAdminApi = callAdminApi;
     window.loadAdminData = loadAdminData;
     window.renderReservations = renderReservations;
