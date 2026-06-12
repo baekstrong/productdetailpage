@@ -256,9 +256,12 @@ async function bulkApprove(classId: string, password: string) {
   const rows = Array.isArray(reservations) ? reservations : [];
 
   const confirmedCount = rows.filter((r) => r.reservation_status === 'confirmed' || r.payment_status === 'paid').length;
-  const remaining = Math.max(capacity - confirmedCount, 0);
+  // 이미 결제 안내 대상인 인원은 자리를 점유 중 — 재클릭 시 중복 문자/초과 승인 방지.
+  const paymentTargetCount = rows.filter((r) => r.reservation_status === 'payment_target').length;
+  const remaining = Math.max(capacity - confirmedCount - paymentTargetCount, 0);
   const candidates = rows.filter((r) =>
     r.reservation_status !== 'confirmed' && r.payment_status !== 'paid'
+    && r.reservation_status !== 'payment_target'
     && r.reservation_status !== 'cancelled' && r.reservation_status !== 'no_show'
   );
 
@@ -295,17 +298,26 @@ async function scheduleFollowups(password: string, reservation: Record<string, u
   const done = await alreadyScheduledTypes(String(reservation.id));
   const now = Date.now();
   const reminder = kstReminderSchedule(info.class_date);
-  if (reminder && reminder.atMs > now && !done.has('class_reminder')) {
-    await notify(password, reservation, 'class_reminder', { class_date: info.label, place: info.place }, reminder.scheduledDate);
+  if (!done.has('class_reminder')) {
+    if (reminder && reminder.atMs > now) {
+      await notify(password, reservation, 'class_reminder', { class_date: info.label, place: info.place }, reminder.scheduledDate);
+    } else {
+      // 발송 시각이 이미 지남 — 조용히 빠뜨리지 않고 skipped로 기록해 현황판에 노출.
+      await logMessage(String(reservation.id), 'class_reminder', String(reservation.phone || ''), { ok: false, skipped: true, reason: '예약 발송 시각이 이미 지남' });
+    }
   }
   const review = kstReviewSchedule(info.class_date, info.end_time);
-  if (review && review.atMs > now && !done.has('review_material')) {
-    await notify(password, reservation, 'review_material', { class_date: info.label, place: info.place }, review.scheduledDate);
+  if (!done.has('review_material')) {
+    if (review && review.atMs > now) {
+      await notify(password, reservation, 'review_material', { class_date: info.label, place: info.place }, review.scheduledDate);
+    } else {
+      await logMessage(String(reservation.id), 'review_material', String(reservation.phone || ''), { ok: false, skipped: true, reason: '예약 발송 시각이 이미 지남' });
+    }
   }
 }
 
 // 취소/만료 시 해당 예약의 예약된 리마인드·복습 문자를 Solapi에서 취소.
-async function cancelScheduledFollowups(password: string, reservationId: string) {
+async function cancelScheduledFollowups(reservationId: string) {
   if (!reservationId) return;
   const rows = await supabaseFetch(`message_logs?reservation_id=eq.${encodeURIComponent(reservationId)}&status=eq.scheduled&message_type=in.(class_reminder,review_material)&select=id,provider_message_id`);
   if (!Array.isArray(rows)) return;
@@ -319,7 +331,7 @@ async function cancelScheduledFollowups(password: string, reservationId: string)
         const res = await fetch(`${url}/functions/v1/solapi-reservations`, {
           method: 'POST',
           headers: { 'content-type': 'application/json', apikey: serviceKey, authorization: `Bearer ${serviceKey}` },
-          body: JSON.stringify({ password, cancelGroupId: groupId }),
+          body: JSON.stringify({ cancelGroupId: groupId }),
         });
         const result = await res.json().catch(() => ({ ok: false }));
         cancelled = Boolean(result && result.ok);
@@ -338,7 +350,7 @@ async function cancelScheduledFollowups(password: string, reservationId: string)
 }
 
 // 재발송 가능한 자동 문자 종류 화이트리스트.
-const RESENDABLE_TYPES = new Set(['payment 안내', 'seat_opened', 'payment_completed', 'class_reminder', 'review_material']);
+const RESENDABLE_TYPES = new Set(['reservation_received', 'payment 안내', 'seat_opened', 'payment_completed', 'class_reminder', 'review_material', 'reservation_cancelled']);
 
 // 현황판에서 미발송자에게 해당 종류 문자를 재발송한다.
 async function resendMessage(classId: string, messageType: string, reservationIds: string[], password: string) {
@@ -382,13 +394,18 @@ async function updateReservation(reservationId: string, updates: Record<string, 
   const updated = Array.isArray(reservation) ? reservation[0] : reservation;
 
   // 상태 전환에 맞춰 안내 문자 발송/예약/취소 (베스트 에포트)
-  if (updated) {
+  // 이번 요청이 상태를 실제로 바꿨을 때만 문자 발송/예약/취소를 트리거한다.
+  // (메모만 수정해도 현재 상태 기준으로 문자가 재발송되는 사고 방지)
+  const statusChanged = 'reservation_status' in safeUpdates || 'payment_status' in safeUpdates;
+  if (updated && statusChanged) {
     if (updated.payment_status === 'expired') {
       const info = await classInfo(String(updated.class_id || ''));
       await notify(password, updated, 'payment_expired', { class_date: info.label, place: info.place });
-      await cancelScheduledFollowups(password, String(updated.id));
+      await cancelScheduledFollowups(String(updated.id));
     } else if (updated.reservation_status === 'cancelled') {
-      await cancelScheduledFollowups(password, String(updated.id));
+      const info = await classInfo(String(updated.class_id || ''));
+      await notify(password, updated, 'reservation_cancelled', { class_date: info.label, place: info.place });
+      await cancelScheduledFollowups(String(updated.id));
     } else if (updated.reservation_status === 'payment_target' || updated.payment_status === 'sent') {
       const info = await classInfo(String(updated.class_id || ''));
       const messageType = notifyOverride === 'seat_opened' ? 'seat_opened' : 'payment 안내';
