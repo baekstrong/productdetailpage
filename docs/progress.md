@@ -3,7 +3,7 @@
 > 이 문서는 **작업 종료 시마다 갱신**한다. 다음 세션이 이 문서만 읽고 바로 이어서 작업할 수 있도록 유지한다.
 > 상세 아키텍처는 `CLAUDE.md`, 운영/콘텐츠 정책은 `AGENTS.md` 참고.
 
-**마지막 갱신:** 2026-06-07 (문자 발송 현황판+재발송 구현·배포 완료 — 실발송 수동 검증만 남음)
+**마지막 갱신:** 2026-06-13 (공개 신청 Edge Function `submit-reservation` 신설 + solapi 내부 호출 인증 — 서버 측 선행 단계, 배포·프론트 연동은 다음 배치)
 
 > 문자 템플릿 정책: `[근력학교]` 접두어 없음(LMS 제목 '케틀벨 원데이 수업'). 결제 마감은 **24시간 고정 문구**("안내 문자를 받은 뒤 24시간 이내")로, 시각 입력 없이 운영. AGENTS.md 9항 톤(여러 줄) 반영. 결제 안내/확정 문자는 수업별 `{장소}`까지 채움.
 
@@ -15,6 +15,11 @@
 
 ## 2. 이번까지 완료한 기능
 
+- **공개 신청 엔드포인트 `submit-reservation` 신설 — 코드 완료(2026-06-13, 배포 전)** (`supabase/functions/submit-reservation/index.ts`)
+  - 검증(이름·010 11자리·개인정보 동의·class_id) → 신청 가능 수업 확인(공개+숨김 아님+시작 전) → 같은 수업 활성 신청 중복 차단(409) → service_role insert → 접수 확인 문자(베스트 에포트, message_logs 기록).
+  - anon 직접 insert를 대체하는 작업의 **서버 측 선행 단계**. index.html 프론트 연동·anon insert 정책 제거·함수 배포는 **다음 배치** 담당.
+  - `solapi-reservations` 확장: `reservation_cancelled` 취소 안내 템플릿 추가 + "Authorization: Bearer <service_role key>" 내부 호출이면 관리자 비밀번호 없이 인증 통과(timing-safe 비교).
+  - `supabase/config.toml`: `[functions.submit-reservation] verify_jwt=false` 추가, `[functions.admin-auth]` 블록 제거(admin-auth 함수 자체 삭제는 다음 배치).
 - **문자 발송 현황판 + 재발송 — 구현·배포 완료(2026-06-07)** (`admin.html` + `admin-reservations`)
   - admin `list`가 `message_logs`를 함께 내려주고, 선택 일정 기준으로 종류별 발송/예약/미발송을 집계해 표시.
   - 전원 성공 시 "전체 발송 완료(N명)"/"전체 예약 완료(N명)", 일부 누락 시 "발송 완료(제외: 이름…)" + [재발송 K명] 버튼.
@@ -72,12 +77,16 @@
 
 ## 4. 다음에 할 일 (우선순위)
 
-1. **문자 자동화 + 현황판 — 구현·배포 완료. 실발송 수동 검증만 남음**
+1. **submit-reservation 후속 배치(다음 배치 담당)**
+   - `index.html`의 `submitReservationToSupabase()`를 anon insert → `submit-reservation` 함수 호출로 교체.
+   - anon insert RLS 정책 제거(schema.sql + 라이브 DB), admin-auth 함수 삭제.
+   - 배포: `supabase functions deploy submit-reservation --no-verify-jwt` + `solapi-reservations` 재배포(내부 호출 인증 반영).
+2. **문자 자동화 + 현황판 — 구현·배포 완료. 실발송 수동 검증만 남음**
    - 세 Edge Function 모두 최신 코드로 배포됨(2026-06-07). 인증 게이트 스모크 통과.
    - **남은 것(운영자 폰으로):** ① 결제완료 처리 → message_logs에 리마인드·복습 2건 `scheduled` + Solapi 콘솔 예약 2건 / ② 취소 처리 → 두 건 `cancelled` + Solapi 예약 사라짐 / ③ 여석 안내 → 문자 수신 + payment_target 전환 / ④ 현황판에서 발송/예약/제외 표기·재발송 버튼 동작.
-2. **테스트 데이터 정리** — 라이브 DB에 테스트 신청(이쌍칼/구마적, 06-06)과 테스트 수업(06-13 01:00)이 있음. 실제 오픈 전 admin에서 정리.
-3. (선택) 커스텀 도메인 연결.
-4. **공개 전 백관장 승인**(AGENTS.md 14항).
+3. **테스트 데이터 정리** — 라이브 DB에 테스트 신청(이쌍칼/구마적, 06-06)과 테스트 수업(06-13 01:00)이 있음. 실제 오픈 전 admin에서 정리.
+4. (선택) 커스텀 도메인 연결.
+5. **공개 전 백관장 승인**(AGENTS.md 14항).
 
 ## 5. 주의 (회귀 방지)
 
