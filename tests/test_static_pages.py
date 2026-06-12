@@ -235,7 +235,8 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("summarizeMessageStatus", admin)
         self.assertIn("renderMessageStatus", admin)
         self.assertIn("data-resend-type", admin)
-        self.assertIn("자동발송 안 함", admin)
+        self.assertIn("reservation_received", admin)
+        self.assertIn("reservation_cancelled", admin)
         self.assertIn("수동 발송", admin)
         self.assertIn("제외:", admin)
 

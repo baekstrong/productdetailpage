@@ -134,7 +134,6 @@
                 <th class="p-3">구분</th>
                 <th class="p-3">이름</th>
                 <th class="p-3">휴대폰 번호 마스킹/원본</th>
-                <th class="p-3">이메일</th>
                 <th class="p-3">케틀벨 경험</th>
                 <th class="p-3">신청 이유</th>
                 <th class="p-3">신청 상태</th>
@@ -277,11 +276,12 @@
       document.getElementById('reservation-count').textContent = `${rows.length}명`;
       const capacity = classItem ? Number(classItem.capacity || 0) : 0;
       const confirmed = classItem ? Number(classItem.confirmed_count || 0) : 0;
-      const remaining = Math.max(capacity - confirmed, 0);
+      const paymentReady = classItem ? Number(classItem.payment_ready_count || 0) : 0;
+      const remaining = Math.max(capacity - confirmed - paymentReady, 0);
       const hint = document.getElementById('bulk-approve-hint');
       if (hint) {
         hint.textContent = classItem
-          ? `예약 가능 인원 ${capacity}명 · 확정 ${confirmed}명 → 선착순 ${remaining}명 결제 안내 대상, 나머지 자동 대기`
+          ? `예약 가능 인원 ${capacity}명 · 확정 ${confirmed}명 · 결제 안내 중 ${paymentReady}명 → 선착순 ${remaining}명 결제 안내 대상, 나머지 자동 대기`
           : '';
       }
       const liveRank = {};
@@ -292,7 +292,7 @@
         if (!isConfirmed && !isDead) { rank += 1; liveRank[r.id] = rank; }
       });
       if (!rows.length) {
-        body.innerHTML = '<tr><td class="p-5 text-center text-slate-500" colspan="13">이 수업일 예약자가 아직 없습니다.</td></tr>';
+        body.innerHTML = '<tr><td class="p-5 text-center text-slate-500" colspan="12">이 수업일 예약자가 아직 없습니다.</td></tr>';
         return;
       }
       body.innerHTML = rows.map((r, index) => `
@@ -302,26 +302,26 @@
           <td class="p-3">${groupBadgeHtml(r, liveRank, remaining)}</td>
           <td class="p-3 font-bold">${escapeHtml(r.applicant_name)}</td>
           <td class="p-3">${escapeHtml(r.phone)}</td>
-          <td class="p-3">${escapeHtml(r.email || '')}</td>
           <td class="p-3">${escapeHtml(r.kettlebell_experience || '')}</td>
           <td class="p-3" title="${escapeHtml(r.reason || '')}">${escapeHtml(r.reason || '')}</td>
           <td class="p-3">${escapeHtml(statusLabels[r.reservation_status] || r.reservation_status)}</td>
           <td class="p-3">${escapeHtml(statusLabels[r.payment_status] || r.payment_status)}</td>
           <td class="p-3">${escapeHtml(r.waitlist_order || '')}</td>
           <td class="p-3">${escapeHtml(formatDateTime(r.created_at))}</td>
-          <td class="p-3">${escapeHtml(r.admin_memo || '')}</td>
+          <td class="p-3"><button type="button" data-memo-edit="${escapeHtml(r.id)}" class="text-left underline decoration-dotted">${escapeHtml(r.admin_memo || '메모 추가')}</button></td>
         </tr>`).join('');
       updateSelectedCount();
     }
 
     // 현황판 행 정의 — type이 null이면 fixed 문구만 표시(자동발송 없음/수동).
     const MESSAGE_STATUS_ROWS = [
-      { label: '예약 신청 완료 문자', type: null, fixed: '자동발송 안 함' },
+      { label: '예약 신청 완료 문자', type: 'reservation_received' },
       { label: '결제 안내 문자', type: 'payment 안내' },
       { label: '여석 안내 문자', type: 'seat_opened' },
       { label: '결제 완료 문자', type: 'payment_completed' },
       { label: '수업 전 리마인드 문자', type: 'class_reminder' },
       { label: '수업 후 복습 자료 문자', type: 'review_material' },
+      { label: '예약 취소 안내 문자', type: 'reservation_cancelled' },
       { label: '복습 영상 안내 문자', type: null, fixed: '수동 발송' },
     ];
 
@@ -587,6 +587,20 @@
 
     document.getElementById('reservation-rows').addEventListener('change', (event) => {
       if (event.target.matches('[data-reservation-check]')) updateSelectedCount();
+    });
+    document.getElementById('reservation-rows').addEventListener('click', async (event) => {
+      const memoButton = event.target.closest('[data-memo-edit]');
+      if (!memoButton) return;
+      const reservationId = memoButton.dataset.memoEdit;
+      const row = adminData.reservations.find((r) => r.id === reservationId);
+      const memo = window.prompt('관리자 메모', (row && row.admin_memo) || '');
+      if (memo === null) return;
+      try {
+        await callAdminApi('updateReservation', { reservationId, updates: { admin_memo: memo } });
+        await loadAdminData();
+      } catch (error) {
+        document.getElementById('admin-message').textContent = `메모 저장 실패: ${error.message}`;
+      }
     });
     document.getElementById('select-all-reservations').addEventListener('change', (event) => {
       document.querySelectorAll('[data-reservation-check]').forEach((box) => { box.checked = event.target.checked; });

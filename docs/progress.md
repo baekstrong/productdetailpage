@@ -3,7 +3,7 @@
 > 이 문서는 **작업 종료 시마다 갱신**한다. 다음 세션이 이 문서만 읽고 바로 이어서 작업할 수 있도록 유지한다.
 > 상세 아키텍처는 `CLAUDE.md`, 운영/콘텐츠 정책은 `AGENTS.md` 참고.
 
-**마지막 갱신:** 2026-06-13 (admin-reservations 동작 개선 — 취소 안내 문자·일괄승인 재클릭 가드·메모수정 시 문자 미발송·리마인드 skip 로그 + admin-auth 죽은 코드 제거. 배포는 다음 배치)
+**마지막 갱신:** 2026-06-13 (프론트 개편 배치 — index.html 신청 폼이 submit-reservation 함수 경유로 전환(이메일 제거·개인정보 동의 추가), 수업 정보 섹션 동적화, data/classes.json 폴백 삭제 + admin.html 메모 편집·이메일 컬럼 제거·일괄승인 힌트/문자 현황판 갱신. 함수 배포·RLS 정리는 다음 배치)
 
 > 문자 템플릿 정책: `[근력학교]` 접두어 없음(LMS 제목 '케틀벨 원데이 수업'). 결제 마감은 **24시간 고정 문구**("안내 문자를 받은 뒤 24시간 이내")로, 시각 입력 없이 운영. AGENTS.md 9항 톤(여러 줄) 반영. 결제 안내/확정 문자는 수업별 `{장소}`까지 채움.
 
@@ -15,6 +15,12 @@
 
 ## 2. 이번까지 완료한 기능
 
+- **프론트 개편 배치 — 코드 완료(2026-06-13)** (`index.html` + `admin.html` + 계약 테스트)
+  - `index.html` 신청 폼: 이메일 입력 삭제, 개인정보 수집·이용 동의 체크박스(필수) 추가. `submitReservationToSupabase()`가 anon REST insert 대신 `functions/v1/submit-reservation` 호출 — 서버의 한글 오류 메시지(`error.serverMessage`)를 그대로 안내, 성공 문구는 "접수 확인 문자를 보내드립니다".
+  - 수업 정보 섹션 동적화: `next-class-schedule`/`next-class-availability`/`next-class-place` + `renderNextClassInfo()`가 가장 가까운 다음 일정을 한국어 라벨(`koreanScheduleLabel`)로 표시. 하드코딩 날짜/현황 제거. 다음 일정 없으면 "새 일정 오픈 준비 중".
+  - `data/classes.json` 폴백 삭제 — Supabase 실패 시 달력 빈 상태 + "일정을 불러오지 못했습니다. 잠시 후 새로고침해 주세요." 안내.
+  - `admin.html`: 이메일 컬럼 제거(colspan 12), 메모 셀이 클릭 → prompt 편집(`admin_memo`만 update — 상태 키 없으니 문자 미발송), 일괄 승인 힌트가 결제 안내 중 인원 차감(`capacity - confirmed - payment_ready`), 문자 현황판에 `reservation_received`(자동화됨)·`reservation_cancelled` 행 추가.
+  - 계약 테스트 같은 커밋 수정(이메일 금지·privacy_consent/submit-reservation 요구·classes.json 테스트 삭제 등) — 12개 통과.
 - **admin-reservations 동작 개선 — 코드 완료(2026-06-13, 재배포 필요)** (`supabase/functions/admin-reservations/index.ts`)
   - `updateReservation`: 이번 요청이 `reservation_status`/`payment_status`를 실제로 바꿨을 때만 문자 분기 실행(메모만 수정해도 문자가 재발송되던 사고 방지).
   - 취소 처리 시 `reservation_cancelled` 취소 안내 문자 발송 + 예약된 리마인드·복습 취소(미결제 마감은 기존 `payment_expired` 문자 유지).
@@ -43,7 +49,7 @@
   - 등록/수정/공개토글/삭제. `createClass`/`updateClass`/`deleteClass` 액션.
   - 목록은 raw `classes` 테이블을 읽어 숨김·비공개 수업까지 관리자에 표시.
 - **고객 페이지 동적 달력** (`index.html`)
-  - 하드코딩 제거, Supabase `class_reservation_summary`로 어느 달이든 동적 생성. 폴백 `data/classes.json`.
+  - 하드코딩 제거, Supabase `class_reservation_summary`로 어느 달이든 동적 생성. (폴백 `data/classes.json`은 2026-06-13 삭제 — 실패 시 안내 문구.)
   - 관리자가 등록하면 자동 노출.
 - **예약 신청 모달** (`index.html`)
   - 달력 날짜 클릭 → 스크롤 대신 모달 팝업(배경/X/ESC 닫기, 성공 시 자동 닫힘). 달력 칸은 `<button>`.
@@ -74,7 +80,7 @@
 - **Edge Function `admin-reservations`**: 최신 코드로 배포됨. **반드시 `--no-verify-jwt`로 배포**(게이트웨이 JWT 검증 끄기 — publishable 키는 JWT 아님, 자체 비밀번호 인증). `supabase/config.toml`에 세 함수 `verify_jwt=false` 명시됨.
 - **DB 뷰**: `is_public` 필터 버전이 라이브에 적용 완료(SQL Editor에서 수동 실행함).
 - **DB 스키마**: `supabase/schema.sql` 기준. 테이블 변경 없음(현재 기능엔 스키마 변경 불필요).
-- **테스트**: `python3 -m unittest tests.test_static_pages` — 13개 통과 유지.
+- **테스트**: `python3 -m unittest tests.test_static_pages` — 12개 통과 유지(classes.json 폴백 테스트 삭제로 13→12).
 
 ### 환경 메모 (다음 세션이 배포할 때)
 - 이 PC에 **Supabase CLI는 brew 설치 실패**(CLT/macOS 26 이슈). 대신 바이너리 직접 설치됨:
@@ -86,9 +92,9 @@
 ## 4. 다음에 할 일 (우선순위)
 
 1. **submit-reservation 후속 배치(다음 배치 담당)**
-   - `index.html`의 `submitReservationToSupabase()`를 anon insert → `submit-reservation` 함수 호출로 교체.
+   - ✅ `index.html`의 `submitReservationToSupabase()` 함수 호출 전환 완료(2026-06-13).
    - anon insert RLS 정책 제거(schema.sql + 라이브 DB). (admin-auth 함수 코드 삭제는 완료 — 라이브 함수 삭제만 선택 사항.)
-   - 배포: `supabase functions deploy submit-reservation --no-verify-jwt` + `solapi-reservations`·`admin-reservations` 재배포(내부 호출 인증 + 이번 동작 개선 반영).
+   - 배포: `supabase functions deploy submit-reservation --no-verify-jwt` + `solapi-reservations`·`admin-reservations` 재배포(내부 호출 인증 + 동작 개선 반영). **프론트는 이미 함수 경유로 전환됐으므로 submit-reservation 배포 전까지 실 신청이 막힘 — 배포를 우선 처리.**
 2. **문자 자동화 + 현황판 — 구현·배포 완료. 실발송 수동 검증만 남음**
    - 세 Edge Function 모두 최신 코드로 배포됨(2026-06-07). 인증 게이트 스모크 통과.
    - **남은 것(운영자 폰으로):** ① 결제완료 처리 → message_logs에 리마인드·복습 2건 `scheduled` + Solapi 콘솔 예약 2건 / ② 취소 처리 → 두 건 `cancelled` + Solapi 예약 사라짐 / ③ 여석 안내 → 문자 수신 + payment_target 전환 / ④ 현황판에서 발송/예약/제외 표기·재발송 버튼 동작.
