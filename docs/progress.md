@@ -3,7 +3,7 @@
 > 이 문서는 **작업 종료 시마다 갱신**한다. 다음 세션이 이 문서만 읽고 바로 이어서 작업할 수 있도록 유지한다.
 > 상세 아키텍처는 `CLAUDE.md`, 운영/콘텐츠 정책은 `AGENTS.md` 참고.
 
-**마지막 갱신:** 2026-06-13 (1차 구조 개선 **코드 전부 완료 + 최종 통합 리뷰 승인**. 마지막 수정 02a1e7a: 동시 신청 레이스(23505) 409 한글 응답 + 함수 간 호출에서 평문 비밀번호 전달 제거. **남은 것 = 함수 3개 배포 + 라이브 DB SQL 2건 — 새 Supabase 토큰 필요(사용자 액션)**)
+**마지막 갱신:** 2026-06-13 (1차 구조 개선 코드 완료 + 최종 리뷰 승인. **함수 3개(submit-reservation 신규, solapi/admin 재배포) 배포 완료 + 스모크 통과**. 남은 것 = 라이브 DB SQL(anon insert 정책 제거 + `reservations_active_unique` 인덱스) — 테스트 신청 중복 때문에 인덱스 생성 실패 → 중복 정리 쿼리 실행 중)
 
 > 문자 템플릿 정책: `[근력학교]` 접두어 없음(LMS 제목 '케틀벨 원데이 수업'). 결제 마감은 **24시간 고정 문구**("안내 문자를 받은 뒤 24시간 이내")로, 시각 입력 없이 운영. AGENTS.md 9항 톤(여러 줄) 반영. 결제 안내/확정 문자는 수업별 `{장소}`까지 채움.
 
@@ -92,16 +92,16 @@
 ### 환경 메모 (다음 세션이 배포할 때)
 - 이 PC에 **Supabase CLI는 brew 설치 실패**(CLT/macOS 26 이슈). 대신 바이너리 직접 설치됨:
   - 경로: `~/.local/share/supabase/supabase` (+ `supabase-go` 동봉). 실행 전 `export PATH="$HOME/.local/share/supabase:$PATH"`.
-- **배포에는 로그인 필요**: `supabase login --token <PAT>`. (이전 토큰은 사용자가 폐기함 → 다음 배포 시 새 토큰 재로그인 필요.)
-- 배포 명령: `supabase functions deploy admin-reservations --project-ref vjoxzbxcylqyhxezxiuj --no-verify-jwt`
-- 함수 스모크: 틀린 비번 POST → `{"ok":false,"error":"invalid password"}` 401 이면 정상.
+- **배포에는 로그인 필요**: `supabase login --token <PAT>`. 토큰은 PC에 저장돼 한 번 로그인하면 폐기 전까지 유지된다(매번 재로그인은 이전 토큰을 폐기했기 때문). 보안상 작업 후 토큰 폐기를 권장하나, 폐기하면 다음 배포 시 재로그인 필요.
+- 배포 명령: `supabase functions deploy <fn> --project-ref vjoxzbxcylqyhxezxiuj --no-verify-jwt` (fn = submit-reservation / solapi-reservations / admin-reservations)
+- 함수 스모크: 틀린 비번 POST → `401` / submit-reservation 잘못된 번호 → `400` 한글 메시지면 정상.
 
 ## 4. 다음에 할 일 (우선순위)
 
-1. **submit-reservation 후속 배치(다음 배치 담당)**
-   - ✅ `index.html`의 `submitReservationToSupabase()` 함수 호출 전환 완료(2026-06-13).
-   - ✅ anon insert RLS 정책 제거 + `reservations_active_unique` 인덱스 — schema.sql 반영 완료(2026-06-13). **라이브 DB 적용 필요**: SQL Editor에서 `drop policy "anon can create reservation" on public.reservations;` + 인덱스 생성 구문만 실행(시드 insert는 실행 금지). (admin-auth 함수 코드 삭제는 완료 — 라이브 함수 삭제만 선택 사항.)
-   - 배포: `supabase functions deploy submit-reservation --no-verify-jwt` + `solapi-reservations`·`admin-reservations` 재배포(내부 호출 인증 + 동작 개선 반영). **프론트는 이미 함수 경유로 전환됐으므로 submit-reservation 배포 전까지 실 신청이 막힘 — 배포를 우선 처리.**
+1. **라이브 DB 스키마 적용(진행 중 — 사용자 SQL Editor 실행)**
+   - ✅ 함수 3개 배포 완료(submit-reservation 신규 + solapi/admin 재배포, 2026-06-13). 스모크 통과. 프론트 실 신청 경로 정상화됨.
+   - **남은 것**: anon insert 정책 제거 + `reservations_active_unique` 인덱스 라이브 적용. 테스트 신청 중복(같은 수업·번호 활성 2건)으로 인덱스 생성이 1차 실패 → 중복 정리 쿼리(최초 1건만 활성 유지, 나머지 cancelled)로 정리 후 인덱스 생성. **schema.sql 전체 재실행 금지(시드 insert 포함).**
+   - (admin-auth 라이브 함수 삭제는 선택: `supabase functions delete admin-auth --project-ref vjoxzbxcylqyhxezxiuj`.)
 2. **문자 자동화 + 현황판 — 구현·배포 완료. 실발송 수동 검증만 남음**
    - 세 Edge Function 모두 최신 코드로 배포됨(2026-06-07). 인증 게이트 스모크 통과.
    - **남은 것(운영자 폰으로):** ① 결제완료 처리 → message_logs에 리마인드·복습 2건 `scheduled` + Solapi 콘솔 예약 2건 / ② 취소 처리 → 두 건 `cancelled` + Solapi 예약 사라짐 / ③ 여석 안내 → 문자 수신 + payment_target 전환 / ④ 현황판에서 발송/예약/제외 표기·재발송 버튼 동작.
