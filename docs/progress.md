@@ -3,7 +3,7 @@
 > 이 문서는 **작업 종료 시마다 갱신**한다. 다음 세션이 이 문서만 읽고 바로 이어서 작업할 수 있도록 유지한다.
 > 상세 아키텍처는 `CLAUDE.md`, 운영/콘텐츠 정책은 `AGENTS.md` 참고.
 
-**마지막 갱신:** 2026-06-13 (스키마/테스트 배치 — schema.sql에서 anon insert 정책 제거 + 활성 예약 unique 인덱스(`reservations_active_unique`) 추가 + 시드 주석 보강, 1차 구조 개선 계약 테스트 추가(13개). **라이브 DB 반영·함수 배포는 아직 — 다음 배치 최우선**)
+**마지막 갱신:** 2026-06-13 (1차 구조 개선 **코드 전부 완료 + 최종 통합 리뷰 승인**. 마지막 수정 02a1e7a: 동시 신청 레이스(23505) 409 한글 응답 + 함수 간 호출에서 평문 비밀번호 전달 제거. **남은 것 = 함수 3개 배포 + 라이브 DB SQL 2건 — 새 Supabase 토큰 필요(사용자 액션)**)
 
 > 문자 템플릿 정책: `[근력학교]` 접두어 없음(LMS 제목 '케틀벨 원데이 수업'). 결제 마감은 **24시간 고정 문구**("안내 문자를 받은 뒤 24시간 이내")로, 시각 입력 없이 운영. AGENTS.md 9항 톤(여러 줄) 반영. 결제 안내/확정 문자는 수업별 `{장소}`까지 채움.
 
@@ -32,7 +32,8 @@
   - 취소 처리 시 `reservation_cancelled` 취소 안내 문자 발송 + 예약된 리마인드·복습 취소(미결제 마감은 기존 `payment_expired` 문자 유지).
   - `bulkApprove` 재클릭 가드: 이미 결제 안내를 받은 `payment_target`을 자리 점유로 차감하고 후보에서 제외(중복 문자·초과 승인 방지).
   - `scheduleFollowups`: 발송 시각이 이미 지난 리마인드/복습은 조용히 빠지지 않고 message_logs에 `skipped`로 기록(현황판 노출).
-  - `RESENDABLE_TYPES`에 `reservation_received`/`reservation_cancelled` 추가. `cancelScheduledFollowups`는 Bearer service_role 인증이므로 body의 평문 비밀번호 전송 제거.
+  - `RESENDABLE_TYPES`에 `reservation_received`/`reservation_cancelled` 추가. 함수 간(solapi) 호출은 Bearer service_role 내부 인증이므로 `sendSms`/`notify`/`cancelScheduledFollowups` 체인 전체에서 평문 비밀번호 전달 제거(클라이언트 인증 게이트 `assertAdminPassword`는 유지).
+  - `submit-reservation`: 동시 신청 레이스로 unique 인덱스(23505) 위반 시 영어 DB 오류 대신 409 한글 안내("이미 이 수업에 신청되어 있습니다…")로 응답.
   - `submit-reservation`의 `isPastClassKst`: 날짜/시각 파싱 실패 시 '종료된 수업' 오인 차단 대신 명시적 오류 throw.
 - **admin-auth 죽은 코드 제거(2026-06-13)** — `supabase/functions/admin-auth/` 삭제(1시간 토큰 발급하나 어디서도 미사용 — admin.html은 매 요청 비밀번호 전송 방식). admin.html의 `authEndpoint` 참조 제거, 계약 테스트 2건 admin-reservations 기준으로 수정. 라이브 함수 삭제는 선택: `supabase functions delete admin-auth --project-ref vjoxzbxcylqyhxezxiuj`. (CLAUDE.md의 admin-auth 언급 정리는 마지막 문서 배치 담당.)
 - **공개 신청 엔드포인트 `submit-reservation` 신설 — 코드 완료(2026-06-13, 배포 전)** (`supabase/functions/submit-reservation/index.ts`)

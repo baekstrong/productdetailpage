@@ -39,7 +39,7 @@ git push
 
 - **프론트**: 단일 파일 정적 HTML + 인라인 vanilla JS (빌드 도구·프레임워크·`node_modules` 없음). `index.html`, `admin.html`, `checkout.html`, `email/index.html`.
 - **백엔드**: Supabase Postgres + Edge Functions(Deno/TypeScript). 프로젝트 ref `vjoxzbxcylqyhxezxiuj`.
-- **문자**: Solapi (Edge Function에서 서버사이드 호출, 현재 실제 전송부는 미구현 스텁).
+- **문자**: Solapi (Edge Function에서 서버사이드 호출, HMAC-SHA256 인증 구현 완료 — 예약 발송/취소 지원, 시크릿 없으면 안전 skip).
 - **테스트**: Python `unittest` (의존성 없음, 표준 라이브러리만).
 - **호스팅**: GitHub Pages (`.nojekyll` 존재, canonical `https://baekstrong.github.io/productdetailpage/`).
 
@@ -53,11 +53,13 @@ python3 -m unittest tests.test_static_pages -v
 python3 -m http.server 8000   # http://localhost:8000/index.html
 
 # Supabase Edge Function 배포 (Supabase CLI 필요, 프로젝트는 이미 link됨)
-supabase functions deploy admin-auth
-supabase functions deploy admin-reservations
-supabase functions deploy solapi-reservations
+# 반드시 --no-verify-jwt 로 배포 (config.toml에도 verify_jwt=false 명시됨)
+supabase functions deploy admin-reservations --no-verify-jwt
+supabase functions deploy solapi-reservations --no-verify-jwt
+supabase functions deploy submit-reservation --no-verify-jwt
 
 # DB 스키마 적용: supabase/schema.sql 을 Supabase SQL Editor에서 실행
+# (운영 DB에는 전체 재실행 금지 — 시드 insert 포함. 필요한 구문만 골라 실행)
 ```
 
 `tests/test_static_pages.py`는 동작 테스트가 아니라 **HTML/JS/스키마에 특정 문자열이 있는지/없는지 검증하는 계약(contract) 테스트**다. 페이지의 카피, Supabase 키 노출 금지(`service_role` 미포함), 데모 데이터 제거 등을 강제한다. 마크업이나 문구를 바꾸면 이 테스트가 깨질 수 있으니 함께 확인할 것.
@@ -65,19 +67,18 @@ supabase functions deploy solapi-reservations
 ## 아키텍처
 
 ### 페이지 흐름
-- **`index.html`** — 공개 상세 + 예약 대기 페이지. 세일즈 카피 + 월간 달력 UI(`calendar-grid`). 날짜별 예약 가능/대기 인원을 `class_reservation_summary`(anon)에서 fetch하고, 실패 시 `data/classes.json`으로 폴백. 예약 폼은 `submitReservationToSupabase()`로 `reservations` 테이블에 anon insert.
+- **`index.html`** — 공개 상세 + 예약 대기 페이지. 세일즈 카피 + 월간 달력 UI(`calendar-grid`). 날짜별 예약 가능/대기 인원을 `class_reservation_summary`(anon)에서 fetch(실패 시 "일정을 불러오지 못했습니다" 안내 — 폴백 목업 없음). '수업 정보' 섹션은 가장 가까운 다음 일정으로 동적 표시(`renderNextClassInfo`). 예약 폼은 `submitReservationToSupabase()`가 공개 Edge Function `submit-reservation`을 호출(개인정보 동의 필수, 직접 insert 아님).
 - **`checkout.html`** — 차수별 결제 안내 페이지. 네이버 스마트스토어 결제 링크(`smartstore.naver.com/easystrength101/products/9825334073`)로 전환 유도. 자체 결제 처리는 없음(스마트스토어 외부 결제).
 - **`admin.html`** — 비밀번호 보호 관리자 화면. `callAdminApi()`가 `admin-reservations` Edge Function을 호출(action: `list`/`updateReservation`)해 예약 현황 조회·상태 변경. 휴대폰 번호 마스킹 표시, 데모/`localStorage` 데이터 없음(전부 서버 데이터).
 - **`email/index.html`** — 이메일 발송용 HTML 상세페이지.
-- **`data/classes.json`** — Supabase 미응답 시 달력 폴백 데이터(목업).
 - **`smartstore/`** — 스마트스토어 상세페이지 이미지 자산(png/jpg).
 
 ### Supabase
-- **스키마** (`supabase/schema.sql`): `classes`, `reservations`, `message_logs` 테이블 + `class_reservation_summary` 뷰. RLS 활성화 — anon은 공개 class 요약 읽기 + 본인 예약 insert만 가능, reservations/message_logs 직접 read는 차단. 관리자 read/update는 service_role을 쓰는 Edge Function 경유.
+- **스키마** (`supabase/schema.sql`): `classes`, `reservations`, `message_logs` 테이블 + `class_reservation_summary` 뷰. RLS 활성화 — anon은 공개 class 요약 읽기만 가능(예약 insert는 `submit-reservation` 함수 경유, 직접 insert 정책 없음), reservations/message_logs 직접 read 차단. `(class_id, phone)` 활성 신청 unique 인덱스(`reservations_active_unique`)로 중복 신청 차단. 관리자 read/update는 service_role을 쓰는 Edge Function 경유.
 - **Edge Functions** (`supabase/functions/`):
-  - `admin-auth` — 비밀번호 SHA-256 해시를 `ADMIN_PASSWORD_HASH`와 timing-safe 비교, 1시간짜리 토큰 발급.
-  - `admin-reservations` — 비밀번호 검증 후 service_role로 예약 목록 조회/상태 업데이트. 업데이트 허용 필드 화이트리스트(`reservation_status`, `payment_status`, `waitlist_order`, `admin_memo`).
-  - `solapi-reservations` — 메시지 타입별 템플릿 채워 Solapi 발송(현재 실제 HMAC 전송부는 스텁, 시크릿 없으면 skip). 복습 영상 링크는 자동 발송 대상이 아님.
+  - `submit-reservation` — 공개 신청 엔드포인트(비밀번호 없음). 검증(이름·010 11자리·개인정보 동의) → 신청 가능 수업 확인 → 중복 차단(409) → service_role insert → 접수 확인 문자(베스트 에포트).
+  - `admin-reservations` — 비밀번호 검증 후 service_role로 예약 목록 조회/상태 업데이트(상태 변경 요청일 때만 문자 트리거). 업데이트 허용 필드 화이트리스트(`reservation_status`, `payment_status`, `waitlist_order`, `admin_memo`).
+  - `solapi-reservations` — 메시지 타입별 템플릿 채워 Solapi 발송(HMAC-SHA256, 예약 발송 `scheduledDate`/취소 `cancelGroupId` 지원, 시크릿 없으면 안전 skip). 인증은 ① 내부 호출(Bearer service_role) 또는 ② 관리자 비밀번호. 복습 영상 링크는 자동 발송 대상이 아님.
 
 ### 문서
 - `docs/admin-schedule-management-plan.md`, `docs/plans/admin-real-data-connection-plan.md` — 관리자 기능/실데이터 연동 설계 계획서.
@@ -93,7 +94,5 @@ supabase functions deploy solapi-reservations
 
 - **시크릿 절대 클라이언트 노출 금지**: `index.html`/`admin.html`에는 Supabase **anon(publishable) key**만 둔다. `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_PASSWORD_HASH`, `SOLAPI_API_KEY`/`SOLAPI_API_SECRET`는 **Edge Function 환경변수(Deno.env)로만** 설정한다. 테스트가 `admin.html`에 `service_role` 문자열이 없는지 검사한다.
 - 새 Edge Function/시크릿은 `supabase secrets set`으로 설정하고 코드/저장소에 하드코딩하지 말 것.
-- `solapi-reservations`의 실제 발송 로직은 미완(스텁). Solapi HMAC 인증 헤더 구현이 필요.
-- `data/classes.json`은 폴백 목업이라 실제 Supabase 데이터와 어긋날 수 있다. 날짜·인원 변경 시 둘 다 점검(테스트가 특정 날짜·인원 문자열을 검사함).
-- 계약 테스트의 `assertNotIn`이 많다(데모 이름 `홍길동`/`김철수`, 비밀번호 `8156`, `<details>` 등 금지). 리팩터링 시 이 금지 항목을 되살리지 말 것.
+- 계약 테스트의 `assertNotIn`이 많다(데모 이름 `홍길동`/`김철수`, 비밀번호 `8156`, `<details>`, `name="email"`, `rest/v1/reservations`, `admin-auth` 등 금지). 리팩터링 시 이 금지 항목을 되살리지 말 것.
 - 공개 배포 전 백관장 승인이 필요(`AGENTS.md` 14항).
