@@ -331,6 +331,14 @@
       { label: '복습 영상 안내 문자', type: null, fixed: '수동 발송' },
     ];
 
+    // 인원 목록을 이름으로 표시 — 4명 이상이면 '이름1, 이름2, 이름3 외 N명'.
+    function nameList(arr) {
+      const names = (arr || []).map((x) => escapeHtml(x.name)).filter(Boolean);
+      if (names.length === 0) return `${(arr || []).length}명`;
+      if (names.length <= 3) return names.join(', ');
+      return `${names.slice(0, 3).join(', ')} 외 ${names.length - 3}명`;
+    }
+
     function bestLogStatus(statuses) {
       if (statuses.includes('sent')) return 'sent';
       if (statuses.includes('scheduled')) return 'scheduled';
@@ -383,9 +391,9 @@
         if (n === 0) {
           summary = '<span class="text-slate-400">발송 내역 없음</span>';
         } else if (missing.length === 0) {
-          if (scheduled.length === 0) summary = `<span class="font-bold text-emerald-700">✅ 전체 발송 완료 (${sent.length}명)</span>`;
-          else if (sent.length === 0) summary = `<span class="font-bold text-sky-700">📅 전체 예약 완료 (${scheduled.length}명)</span>`;
-          else summary = `<span class="font-bold text-emerald-700">발송 ${sent.length}명 · 예약 ${scheduled.length}명 (총 ${n}명)</span>`;
+          if (scheduled.length === 0) summary = `<span class="font-bold text-emerald-700">✅ 전체 발송 완료 (${nameList(sent)})</span>`;
+          else if (sent.length === 0) summary = `<span class="font-bold text-sky-700">📅 전체 예약 완료 (${nameList(scheduled)})</span>`;
+          else summary = `<span class="font-bold text-emerald-700">발송: ${nameList(sent)} · 예약: ${nameList(scheduled)}</span>`;
         } else {
           const names = missing.map((m) => escapeHtml(m.name)).join(', ');
           summary = `<span class="font-bold text-amber-700">발송 완료 (제외: ${names})</span>`;
@@ -558,18 +566,37 @@
       }
     }
 
+    // 로그인 진입 공통 — 성공 시 비밀번호를 sessionStorage에 보관해 새로고침(F5)에도 재입력 없이 자동 재진입한다.
+    // sessionStorage는 탭/창을 닫으면 사라지므로 localStorage(영구)보다 노출 위험이 작다.
+    async function enterAdmin(password) {
+      adminPassword = password;
+      await loadAdminData();
+      try { sessionStorage.setItem('kb_admin_pw', password); } catch (_) { /* 비공개모드 등 — 무시 */ }
+      document.querySelector('[data-admin-login]').classList.add('hidden');
+      document.getElementById('admin-app').classList.remove('hidden');
+    }
+
     document.getElementById('login-form').addEventListener('submit', async (event) => {
       event.preventDefault();
-      adminPassword = document.getElementById('admin-password').value;
       document.getElementById('login-message').textContent = '관리자 정보를 확인하는 중입니다.';
       try {
-        await loadAdminData();
-        document.querySelector('[data-admin-login]').classList.add('hidden');
-        document.getElementById('admin-app').classList.remove('hidden');
+        await enterAdmin(document.getElementById('admin-password').value);
       } catch (error) {
         document.getElementById('login-message').textContent = `접속 실패: ${error.message}`;
       }
     });
+
+    // 새로고침 후 저장된 비밀번호로 자동 재진입(검증 실패 시 보관값 폐기하고 로그인 화면 유지).
+    (async function tryAutoLogin() {
+      let saved = '';
+      try { saved = sessionStorage.getItem('kb_admin_pw') || ''; } catch (_) { saved = ''; }
+      if (!saved) return;
+      try {
+        await enterAdmin(saved);
+      } catch (_) {
+        try { sessionStorage.removeItem('kb_admin_pw'); } catch (_) { /* 무시 */ }
+      }
+    })();
 
     document.getElementById('bulk-approve-button').addEventListener('click', async () => {
       const classId = selectedClassId();
