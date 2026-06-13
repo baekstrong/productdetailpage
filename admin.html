@@ -37,9 +37,9 @@
           <label class="md:col-span-3 grid gap-1 text-xs font-bold text-slate-600">수업 날짜
             <input id="new-class-date" type="date" required class="rounded-xl border border-slate-300 px-3 py-2.5 font-normal text-slate-900" /></label>
           <label class="md:col-span-2 grid gap-1 text-xs font-bold text-slate-600">시작 시간
-            <input id="new-class-start" type="time" required value="10:00" class="rounded-xl border border-slate-300 px-3 py-2.5 font-normal text-slate-900" /></label>
+            <input id="new-class-start" type="time" required value="13:00" class="rounded-xl border border-slate-300 px-3 py-2.5 font-normal text-slate-900" /></label>
           <label class="md:col-span-2 grid gap-1 text-xs font-bold text-slate-600">종료 시간
-            <input id="new-class-end" type="time" required value="13:00" class="rounded-xl border border-slate-300 px-3 py-2.5 font-normal text-slate-900" /></label>
+            <input id="new-class-end" type="time" required value="16:00" class="rounded-xl border border-slate-300 px-3 py-2.5 font-normal text-slate-900" /></label>
           <label class="md:col-span-2 grid gap-1 text-xs font-bold text-slate-600">정원
             <input id="new-class-capacity" type="number" min="1" value="6" required class="rounded-xl border border-slate-300 px-3 py-2.5 font-normal text-slate-900" /></label>
           <label class="md:col-span-3 grid gap-1 text-xs font-bold text-slate-600">장소
@@ -469,8 +469,8 @@
     function resetClassForm() {
       document.getElementById('class-create-form').reset();
       document.getElementById('class-edit-id').value = '';
-      document.getElementById('new-class-start').value = '10:00';
-      document.getElementById('new-class-end').value = '13:00';
+      document.getElementById('new-class-start').value = '13:00';
+      document.getElementById('new-class-end').value = '16:00';
       document.getElementById('new-class-capacity').value = 6;
       document.getElementById('new-class-place').value = '근력학교 고대점';
       document.getElementById('new-class-public').checked = true;
