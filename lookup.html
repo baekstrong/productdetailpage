@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>케틀벨 원데이 수업 · 내 예약 조회</title>
+  <meta name="robots" content="noindex,nofollow" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.min.css" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: { extend: {
+        fontFamily: { sans: ['Pretendard', 'ui-sans-serif', 'system-ui', '-apple-system', 'sans-serif'] },
+        colors: {
+          ink: { 900: '#0F1113', 800: '#1A1D21', 700: '#2B2F35', 500: '#5B6168', 400: '#7C8189', 300: '#B7BCC3', 200: '#E4E6EA', 100: '#F1F2F5' },
+          cream: { 50: '#FBF9F5', 100: '#F6F2EA', 200: '#ECE5D5' },
+          brand: { 50: '#FFF3EC', 100: '#FFE2D0', 500: '#EF6B2B', 600: '#D95715', 700: '#B2430B' },
+        },
+        boxShadow: { soft: '0 1px 2px rgba(15,17,19,0.04), 0 8px 24px rgba(15,17,19,0.06)' },
+      } },
+    };
+  </script>
+  <style>
+    body { font-family: 'Pretendard', ui-sans-serif, system-ui, -apple-system, sans-serif; }
+    .break-keep { word-break: keep-all; }
+  </style>
+</head>
+<body class="bg-cream-50 text-ink-800 break-keep">
+  <header class="sticky top-0 z-40 bg-cream-50/85 backdrop-blur border-b border-ink-200/60">
+    <nav class="max-w-2xl mx-auto px-5 h-14 flex items-center justify-between">
+      <a href="index.html" class="flex items-center gap-2">
+        <span class="inline-block w-2.5 h-2.5 rounded-full bg-brand-500"></span>
+        <span class="font-bold tracking-tight">케틀벨 원데이</span>
+      </a>
+      <a href="index.html" class="text-sm font-semibold text-ink-900 hover:text-brand-600 transition">예약 가능 일정 →</a>
+    </nav>
+  </header>
+
+  <main class="max-w-2xl mx-auto px-5 py-12 sm:py-16">
+    <p class="text-sm font-semibold text-brand-600 tracking-wide">MY RESERVATION</p>
+    <h1 class="mt-2 text-2xl sm:text-3xl font-extrabold tracking-tight text-ink-900">내 예약 조회</h1>
+    <p class="mt-3 text-ink-500">신청하실 때 입력한 이름과 휴대폰 번호를 넣으면 현재 신청 상태를 확인할 수 있습니다.</p>
+
+    <form id="lookup-form" class="mt-8 grid gap-4 rounded-3xl bg-white ring-1 ring-ink-200/70 p-6 shadow-soft">
+      <label class="grid gap-1 text-sm font-bold text-ink-700">이름
+        <input name="applicant_name" autocomplete="name" required class="rounded-xl border border-ink-200 px-4 py-3 font-normal" /></label>
+      <label class="grid gap-1 text-sm font-bold text-ink-700">휴대폰 번호
+        <input name="phone" inputmode="tel" autocomplete="tel" required placeholder="01012345678" class="rounded-xl border border-ink-200 px-4 py-3 font-normal" /></label>
+      <button type="submit" class="inline-flex items-center justify-center rounded-xl bg-brand-500 px-6 py-3.5 text-base font-bold text-white hover:bg-brand-600 transition">조회하기</button>
+      <p id="lookup-message" class="text-sm text-ink-500">신청 시 입력한 정보와 동일해야 조회됩니다.</p>
+    </form>
+
+    <div id="lookup-results" class="mt-6 grid gap-3"></div>
+  </main>
+
+  <footer class="border-t border-ink-200/60 bg-cream-50">
+    <div class="max-w-2xl mx-auto px-5 py-10 flex items-center justify-center">
+      <p class="text-xs text-ink-400">© 2026 Kettlebell One-Day</p>
+    </div>
+  </footer>
+
+  <script>
+    window.SUPABASE_URL = 'https://vjoxzbxcylqyhxezxiuj.supabase.co';
+    window.SUPABASE_ANON_KEY = 'sb_publishable_U7ezBE8WmH2X2W9EnHx7Rw_q8t8h3HV';
+
+    (function () {
+      var form = document.getElementById('lookup-form');
+      var message = document.getElementById('lookup-message');
+      var results = document.getElementById('lookup-results');
+
+      function escapeHtml(value) {
+        return String(value == null ? '' : value).replace(/[&<>'"]/g, function (ch) {
+          return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[ch];
+        });
+      }
+
+      function statusTone(label) {
+        if (label.indexOf('확정') >= 0) return 'bg-emerald-50 ring-emerald-200 text-emerald-700';
+        if (label.indexOf('결제 안내') >= 0) return 'bg-brand-50 ring-brand-100 text-brand-700';
+        if (label.indexOf('취소') >= 0 || label.indexOf('불참') >= 0) return 'bg-ink-100 ring-ink-200 text-ink-500';
+        return 'bg-white ring-ink-200 text-ink-700';
+      }
+
+      function renderResults(list) {
+        if (!list.length) {
+          results.innerHTML = '<div class="rounded-2xl bg-white ring-1 ring-ink-200/70 p-6 text-sm text-ink-500">일치하는 신청 내역이 없습니다. 이름과 휴대폰 번호를 다시 확인해 주세요.</div>';
+          return;
+        }
+        results.innerHTML = list.map(function (r) {
+          return '<div class="rounded-2xl bg-white ring-1 ring-ink-200/70 p-5 shadow-soft">'
+            + '<p class="font-bold text-ink-900">' + escapeHtml(r.class_label) + '</p>'
+            + '<p class="mt-1 text-sm text-ink-500">' + escapeHtml(r.place) + '</p>'
+            + '<span class="mt-3 inline-flex items-center px-3 py-1 rounded-full ring-1 text-xs font-bold ' + statusTone(r.status_label) + '">' + escapeHtml(r.status_label) + '</span>'
+            + '</div>';
+        }).join('');
+      }
+
+      form.addEventListener('submit', async function (event) {
+        event.preventDefault();
+        var data = Object.fromEntries(new FormData(form).entries());
+        message.textContent = '조회하는 중입니다.';
+        results.innerHTML = '';
+        try {
+          var response = await fetch(window.SUPABASE_URL + '/functions/v1/lookup-reservation', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', apikey: window.SUPABASE_ANON_KEY, authorization: 'Bearer ' + window.SUPABASE_ANON_KEY },
+            body: JSON.stringify({ applicant_name: data.applicant_name, phone: data.phone })
+          });
+          var result = await response.json().catch(function () { return {}; });
+          if (!response.ok || result.ok === false) {
+            message.textContent = result.error || '조회에 실패했습니다. 잠시 후 다시 시도해 주세요.';
+            return;
+          }
+          message.textContent = result.reservations.length ? '신청 내역입니다.' : '';
+          renderResults(result.reservations || []);
+        } catch (error) {
+          message.textContent = '조회에 실패했습니다. 잠시 후 다시 시도해 주세요.';
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

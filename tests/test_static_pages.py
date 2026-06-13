@@ -287,6 +287,28 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("reservations_active_unique", schema)
         self.assertNotIn("anon can create reservation", schema)
 
+    def test_customer_reservation_lookup(self):
+        page = read_page("lookup.html")
+        fn = read_page("supabase/functions/lookup-reservation/index.ts")
+        index = read_page("index.html")
+
+        # 조회 페이지: 이름+전화 입력 폼 + 함수 호출
+        self.assertIn("내 예약 조회", page)
+        self.assertIn("name=\"applicant_name\"", page)
+        self.assertIn("name=\"phone\"", page)
+        self.assertIn("functions/v1/lookup-reservation", page)
+        self.assertIn("noindex", page)
+        # 조회 함수: 이름+전화 일치, 고객 상태 라벨, service_role
+        self.assertIn("applicant_name=eq.", fn)
+        self.assertIn("phone=eq.", fn)
+        self.assertIn("^010\\d{8}$", fn)
+        self.assertIn("customerStatusLabel", fn)
+        self.assertIn("SUPABASE_SERVICE_ROLE_KEY", fn)
+        # 대기 순번 등 내부 정보는 노출하지 않는다(고객 화면 정책)
+        self.assertNotIn("waitlist_order", fn)
+        # 공개 페이지에서 조회 진입 링크 제공
+        self.assertIn("lookup.html", index)
+
 
 if __name__ == "__main__":
     unittest.main()

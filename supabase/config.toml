@@ -13,3 +13,6 @@ verify_jwt = false
 
 [functions.submit-reservation]
 verify_jwt = false
+
+[functions.lookup-reservation]
+verify_jwt = false
