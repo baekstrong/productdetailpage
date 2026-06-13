@@ -253,12 +253,18 @@ class StaticPageTests(unittest.TestCase):
         solapi = read_page("supabase/functions/solapi-reservations/index.ts")
         schema = read_page("supabase/schema.sql")
 
-        # 공개 신청 함수: 동의·번호 검증·중복 차단·접수 문자·service_role
+        # 공개 신청 함수: 동의·번호 검증·중복 차단·접수 문자(정원 내/만석 2분기)·service_role
         self.assertIn("privacy_consent", fn)
         self.assertIn("^010\\d{8}$", fn)
         self.assertIn("reservation_status=not.in.(cancelled,no_show)", fn)
-        self.assertIn("reservation_received", fn)
+        self.assertIn("reservation_success", fn)
+        self.assertIn("reservation_waitlist", fn)
         self.assertIn("SUPABASE_SERVICE_ROLE_KEY", fn)
+
+        # 접수 문자 2분기 템플릿이 solapi에 존재
+        self.assertIn("reservation_success", solapi)
+        self.assertIn("reservation_waitlist", solapi)
+        self.assertIn("수강 대기 신청이 완료되었습니다", solapi)
 
         # 프론트는 함수 호출만, 직접 insert 금지
         self.assertIn("functions/v1/submit-reservation", html)

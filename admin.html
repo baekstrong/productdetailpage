@@ -318,9 +318,10 @@
       updateSelectedCount();
     }
 
-    // 현황판 행 정의 — type이 null이면 fixed 문구만 표시(자동발송 없음/수동).
+    // 현황판 행 정의 — type이 null이면 fixed 문구만 표시(자동발송 없음/수동). type 배열이면 여러 종류를 합산.
+    // 접수 문자는 정원 내(reservation_success)/만석(reservation_waitlist)/레거시(reservation_received)를 한 행으로 합산하고 재발송은 제공하지 않는다(신청 시 1회 자동).
     const MESSAGE_STATUS_ROWS = [
-      { label: '예약 신청 완료 문자', type: 'reservation_received' },
+      { label: '예약 신청 완료 문자', type: ['reservation_success', 'reservation_waitlist', 'reservation_received'], resendable: false },
       { label: '결제 안내 문자', type: 'payment 안내' },
       { label: '여석 안내 문자', type: 'seat_opened' },
       { label: '결제 완료 문자', type: 'payment_completed' },
@@ -337,13 +338,14 @@
       return 'missing'; // failed / skipped / cancel_failed / 기타
     }
 
-    // 선택 일정 예약자 기준으로 특정 문자 종류의 발송 상태를 집계.
+    // 선택 일정 예약자 기준으로 특정 문자 종류의 발송 상태를 집계. type은 문자열 또는 배열(여러 종류 합산).
     function summarizeMessageStatus(type, reservations, logs) {
+      const types = Array.isArray(type) ? type : [type];
       const resById = {};
       reservations.forEach((r) => { resById[r.id] = r; });
       const byRes = {};
       (logs || []).forEach((log) => {
-        if (log.message_type !== type) return;
+        if (!types.includes(log.message_type)) return;
         if (!resById[log.reservation_id]) return;
         (byRes[log.reservation_id] = byRes[log.reservation_id] || []).push(log.status);
       });
@@ -387,7 +389,10 @@
         } else {
           const names = missing.map((m) => escapeHtml(m.name)).join(', ');
           summary = `<span class="font-bold text-amber-700">발송 완료 (제외: ${names})</span>`;
-          action = `<button type="button" data-resend-type="${escapeHtml(row.type)}" class="rounded-lg bg-orange-100 px-3 py-1.5 text-xs font-bold text-orange-700">재발송 ${missing.length}명</button>`;
+          // 접수 문자처럼 신청 시 1회 자동 발송하는 행(resendable:false, type 배열)은 재발송 버튼을 두지 않는다.
+          if (row.resendable !== false && typeof row.type === 'string') {
+            action = `<button type="button" data-resend-type="${escapeHtml(row.type)}" class="rounded-lg bg-orange-100 px-3 py-1.5 text-xs font-bold text-orange-700">재발송 ${missing.length}명</button>`;
+          }
         }
         return statusRowHtml(row.label, summary, action);
       }).join('');

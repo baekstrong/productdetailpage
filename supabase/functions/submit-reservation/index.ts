@@ -73,14 +73,15 @@ function isPastClassKst(classDate: string, startTime: string): boolean {
   return start.getTime() < Date.now();
 }
 
-async function sendReceivedSms(reservationId: string, phone: string, classLabel: string) {
+// 접수 문자 발송 — messageType은 자리 상황에 따라 reservation_success(정원 내) 또는 reservation_waitlist(만석).
+async function sendReceivedSms(reservationId: string, phone: string, classLabel: string, messageType: string) {
   const { url, serviceKey } = getSupabaseAdmin();
   let result: Record<string, unknown> = { ok: false, error: 'send failed' };
   try {
     const response = await fetch(`${url}/functions/v1/solapi-reservations`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', apikey: serviceKey, authorization: `Bearer ${serviceKey}` },
-      body: JSON.stringify({ messageType: 'reservation_received', phone, values: { class_date: classLabel } }),
+      body: JSON.stringify({ messageType, phone, values: { class_date: classLabel } }),
     });
     result = await response.json().catch(() => ({ ok: false, error: 'invalid solapi response' }));
   } catch (error) {
@@ -93,7 +94,7 @@ async function sendReceivedSms(reservationId: string, phone: string, classLabel:
       headers: { prefer: 'return=minimal' },
       body: JSON.stringify({
         reservation_id: reservationId,
-        message_type: 'reservation_received',
+        message_type: messageType,
         phone_masked: maskPhone(phone),
         provider_message_id: (result && ((result.groupId as string) || (result.messageId as string))) || null,
         status: ok ? 'sent' : (result && result.skipped ? 'skipped' : 'failed'),
@@ -126,7 +127,7 @@ serve(async (req) => {
     if (!classId) return jsonResponse({ ok: false, error: '수업이 선택되지 않았습니다.' }, 400);
 
     // 신청 가능한 수업인지 확인(공개 + 숨김 아님 + 아직 시작 전).
-    const classes = await supabaseFetch(`classes?id=eq.${encodeURIComponent(classId)}&select=id,class_date,start_time,end_time,is_public,status`);
+    const classes = await supabaseFetch(`classes?id=eq.${encodeURIComponent(classId)}&select=id,class_date,start_time,end_time,is_public,status,capacity`);
     const classRow = Array.isArray(classes) ? classes[0] : null;
     if (!classRow || classRow.is_public !== true || classRow.status === 'hidden') {
       return jsonResponse({ ok: false, error: '신청할 수 없는 수업입니다.' }, 400);
@@ -163,9 +164,17 @@ serve(async (req) => {
     });
     const reservation = Array.isArray(created) ? created[0] : created;
 
+    // 신청 시점의 자리 상황으로 접수 문자 분기 — 본인 포함 활성 신청 수가 정원 이내면 선착순 성공, 초과면 대기.
+    const activeRows = await supabaseFetch(
+      `reservations?class_id=eq.${encodeURIComponent(classId)}&reservation_status=not.in.(cancelled,no_show)&select=id`
+    );
+    const activeCount = Array.isArray(activeRows) ? activeRows.length : 0;
+    const capacity = Number(classRow.capacity || 0);
+    const messageType = capacity > 0 && activeCount > capacity ? 'reservation_waitlist' : 'reservation_success';
+
     // 접수 확인 문자(베스트 에포트 — 실패해도 신청 자체는 성공으로 응답).
     const classLabel = formatSchedule(String(classRow.class_date), String(classRow.start_time), String(classRow.end_time));
-    if (reservation && reservation.id) await sendReceivedSms(String(reservation.id), phone, classLabel);
+    if (reservation && reservation.id) await sendReceivedSms(String(reservation.id), phone, classLabel, messageType);
 
     return jsonResponse({ ok: true });
   } catch (error) {
