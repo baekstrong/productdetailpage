@@ -567,7 +567,7 @@
     }
 
     // 로그인 진입 공통 — 성공 시 비밀번호를 sessionStorage에 보관해 새로고침(F5)에도 재입력 없이 자동 재진입한다.
-    // sessionStorage는 탭/창을 닫으면 사라지므로 localStorage(영구)보다 노출 위험이 작다.
+    // sessionStorage는 탭/창을 닫으면 사라지므로 영구 저장 방식보다 노출 위험이 작다.
     async function enterAdmin(password) {
       adminPassword = password;
       await loadAdminData();
