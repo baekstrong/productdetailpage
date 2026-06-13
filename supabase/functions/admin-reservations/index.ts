@@ -63,6 +63,11 @@ function maskPhone(phone: string): string {
   return String(phone || '').replace(/^(010)(\d{4})(\d{4})$/, '$1-****-$3');
 }
 
+// 취소·불참 예약은 정원/확정/대기 등 모든 인원 집계에서 제외한다.
+function isCancelledRow(r: Record<string, unknown>): boolean {
+  return r.reservation_status === 'cancelled' || r.reservation_status === 'no_show';
+}
+
 // solapi-reservations 호출 인증은 Bearer service_role 헤더(내부 호출)로 충분 — 비밀번호는 보내지 않는다.
 async function sendSms(messageType: string, phone: string, values: Record<string, string>, scheduledAt?: string) {
   const { url, serviceKey } = getSupabaseAdmin();
@@ -193,7 +198,8 @@ async function listAdminData() {
 
   const summary = classRows.map((c: Record<string, unknown>) => {
     const rows = reservationRows.filter((r: Record<string, unknown>) => r.class_id === c.id);
-    const confirmed = rows.filter((r) => r.reservation_status === 'confirmed' || r.payment_status === 'paid').length;
+    // 취소·불참 건은 어떤 집계에도 포함하지 않는다(결제 완료 후 취소돼도 자리는 복구되어야 함).
+    const confirmed = rows.filter((r) => !isCancelledRow(r) && (r.reservation_status === 'confirmed' || r.payment_status === 'paid')).length;
     const waitlist = rows.filter((r) => r.reservation_status === 'applied' || r.reservation_status === 'waitlisted').length;
     const paymentReady = rows.filter((r) => r.reservation_status === 'payment_target').length;
     return {
@@ -256,7 +262,7 @@ async function bulkApprove(classId: string) {
   const reservations = await supabaseFetch(`reservations?class_id=eq.${encodeURIComponent(classId)}&select=*&order=created_at.asc`);
   const rows = Array.isArray(reservations) ? reservations : [];
 
-  const confirmedCount = rows.filter((r) => r.reservation_status === 'confirmed' || r.payment_status === 'paid').length;
+  const confirmedCount = rows.filter((r) => !isCancelledRow(r) && (r.reservation_status === 'confirmed' || r.payment_status === 'paid')).length;
   // 이미 결제 안내 대상인 인원은 자리를 점유 중 — 재클릭 시 중복 문자/초과 승인 방지.
   const paymentTargetCount = rows.filter((r) => r.reservation_status === 'payment_target').length;
   const remaining = Math.max(capacity - confirmedCount - paymentTargetCount, 0);

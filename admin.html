@@ -257,11 +257,12 @@
     }
 
     function groupBadgeHtml(r, liveRank, remaining) {
-      if (r.reservation_status === 'confirmed' || r.payment_status === 'paid') {
-        return '<span class="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700">확정</span>';
-      }
+      // 취소·불참을 먼저 판정한다(결제 완료 후 취소된 건이 '확정'으로 잘못 표시되지 않도록).
       if (r.reservation_status === 'cancelled' || r.reservation_status === 'no_show') {
         return '<span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-500">취소</span>';
+      }
+      if (r.reservation_status === 'confirmed' || r.payment_status === 'paid') {
+        return '<span class="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700">확정</span>';
       }
       if (r.reservation_status === 'payment_target') {
         return '<span class="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-bold text-orange-700">결제 안내 중</span>';
