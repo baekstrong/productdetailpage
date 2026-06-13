@@ -3,7 +3,7 @@
 > 이 문서는 **작업 종료 시마다 갱신**한다. 다음 세션이 이 문서만 읽고 바로 이어서 작업할 수 있도록 유지한다.
 > 상세 아키텍처는 `CLAUDE.md`, 운영/콘텐츠 정책은 `AGENTS.md` 참고.
 
-**마지막 갱신:** 2026-06-13 (1차 구조 개선 코드 완료 + 최종 리뷰 승인. **함수 3개(submit-reservation 신규, solapi/admin 재배포) 배포 완료 + 스모크 통과**. 남은 것 = 라이브 DB SQL(anon insert 정책 제거 + `reservations_active_unique` 인덱스) — 테스트 신청 중복 때문에 인덱스 생성 실패 → 중복 정리 쿼리 실행 중)
+**마지막 갱신:** 2026-06-13 (**1차 구조 개선 전부 완료 — 코드·배포·라이브 DB 적용·검증 끝**. 함수 3개 배포·스모크 통과, anon insert 정책 제거(RLS 42501로 직접 insert 차단 확인)+`reservations_active_unique` 인덱스 라이브 적용 완료. 남은 것 = 실발송 수동 검증 + 테스트 데이터 정리 + 공개 승인)
 
 > 문자 템플릿 정책: `[근력학교]` 접두어 없음(LMS 제목 '케틀벨 원데이 수업'). 결제 마감은 **24시간 고정 문구**("안내 문자를 받은 뒤 24시간 이내")로, 시각 입력 없이 운영. AGENTS.md 9항 톤(여러 줄) 반영. 결제 안내/확정 문자는 수업별 `{장소}`까지 채움.
 
@@ -11,7 +11,7 @@
 
 ## 1. 한 줄 상태
 
-관리자 수업 일정 등록 → 고객 페이지 동적 달력 노출 → 모달 예약 → 관리자 선착순/일괄 처리까지 **구현·배포·검증 완료**. 공개 운영 직전 단계.
+관리자 수업 일정 등록 → 고객 페이지 동적 달력 노출 → 모달 예약(공개 `submit-reservation` 함수 경유, anon 직접 insert 차단) → 접수/결제안내/여석/확정/리마인드/복습/취소 문자 자동화 → 관리자 선착순·일괄 처리·문자 현황판까지 **구현·배포·검증 완료**. 남은 건 실발송 수동 검증·테스트 데이터 정리·공개 승인뿐.
 
 ## 2. 이번까지 완료한 기능
 
@@ -98,10 +98,11 @@
 
 ## 4. 다음에 할 일 (우선순위)
 
-1. **라이브 DB 스키마 적용(진행 중 — 사용자 SQL Editor 실행)**
-   - ✅ 함수 3개 배포 완료(submit-reservation 신규 + solapi/admin 재배포, 2026-06-13). 스모크 통과. 프론트 실 신청 경로 정상화됨.
-   - **남은 것**: anon insert 정책 제거 + `reservations_active_unique` 인덱스 라이브 적용. 테스트 신청 중복(같은 수업·번호 활성 2건)으로 인덱스 생성이 1차 실패 → 중복 정리 쿼리(최초 1건만 활성 유지, 나머지 cancelled)로 정리 후 인덱스 생성. **schema.sql 전체 재실행 금지(시드 insert 포함).**
-   - (admin-auth 라이브 함수 삭제는 선택: `supabase functions delete admin-auth --project-ref vjoxzbxcylqyhxezxiuj`.)
+1. **✅ 1차 구조 개선 — 코드·배포·DB 적용·검증 전부 완료(2026-06-13)**
+   - 함수 3개 배포(submit-reservation 신규 + solapi/admin 재배포), 스모크 통과.
+   - 라이브 DB: `anon can create reservation` 정책 제거(anon 직접 insert가 RLS 42501로 차단됨을 실제 확인) + `reservations_active_unique` 인덱스 생성 완료. 인덱스 생성 전 중복 활성 신청 1건은 최초만 남기고 취소 처리.
+   - (admin-auth 라이브 함수 삭제는 선택 사항으로 남음: `supabase functions delete admin-auth --project-ref vjoxzbxcylqyhxezxiuj`.)
+   - ⚠️ 이번 세션에서 `supabase login`에 쓴 PAT가 채팅에 노출됨 — 보안상 대시보드에서 폐기 권장(폐기 시 다음 배포에 재로그인 필요).
 2. **문자 자동화 + 현황판 — 구현·배포 완료. 실발송 수동 검증만 남음**
    - 세 Edge Function 모두 최신 코드로 배포됨(2026-06-07). 인증 게이트 스모크 통과.
    - **남은 것(운영자 폰으로):** ① 결제완료 처리 → message_logs에 리마인드·복습 2건 `scheduled` + Solapi 콘솔 예약 2건 / ② 취소 처리 → 두 건 `cancelled` + Solapi 예약 사라짐 / ③ 여석 안내 → 문자 수신 + payment_target 전환 / ④ 현황판에서 발송/예약/제외 표기·재발송 버튼 동작.
