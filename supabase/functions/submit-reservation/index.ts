@@ -170,6 +170,10 @@ serve(async (req) => {
     return jsonResponse({ ok: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'unknown error';
+    // 유니크 인덱스 위반(동시 신청 레이스)은 중복 신청과 같은 한글 안내로 응답.
+    if (message.includes('23505') || message.includes('reservations_active_unique')) {
+      return jsonResponse({ ok: false, error: '이미 이 수업에 신청되어 있습니다. 결제 안내 문자를 기다려 주세요.' }, 409);
+    }
     return jsonResponse({ ok: false, error: message }, 500);
   }
 });

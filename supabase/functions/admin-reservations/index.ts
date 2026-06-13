@@ -63,13 +63,14 @@ function maskPhone(phone: string): string {
   return String(phone || '').replace(/^(010)(\d{4})(\d{4})$/, '$1-****-$3');
 }
 
-async function sendSms(password: string, messageType: string, phone: string, values: Record<string, string>, scheduledAt?: string) {
+// solapi-reservations 호출 인증은 Bearer service_role 헤더(내부 호출)로 충분 — 비밀번호는 보내지 않는다.
+async function sendSms(messageType: string, phone: string, values: Record<string, string>, scheduledAt?: string) {
   const { url, serviceKey } = getSupabaseAdmin();
   try {
     const response = await fetch(`${url}/functions/v1/solapi-reservations`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', apikey: serviceKey, authorization: `Bearer ${serviceKey}` },
-      body: JSON.stringify({ password, messageType, phone, values, scheduledAt }),
+      body: JSON.stringify({ messageType, phone, values, scheduledAt }),
     });
     return await response.json().catch(() => ({ ok: false, error: 'invalid solapi response' }));
   } catch (error) {
@@ -100,10 +101,10 @@ async function logMessage(reservationId: string, messageType: string, phone: str
   }
 }
 
-async function notify(password: string, reservation: Record<string, unknown>, messageType: string, values: Record<string, string>, scheduledAt?: string) {
+async function notify(reservation: Record<string, unknown>, messageType: string, values: Record<string, string>, scheduledAt?: string) {
   const phone = String(reservation?.phone || '');
   if (!phone) return;
-  const result = await sendSms(password, messageType, phone, values, scheduledAt);
+  const result = await sendSms(messageType, phone, values, scheduledAt);
   await logMessage(String(reservation.id), messageType, phone, result as Record<string, unknown>, scheduledAt);
 }
 
@@ -245,7 +246,7 @@ async function deleteClass(classId: string) {
   return { ok: true };
 }
 
-async function bulkApprove(classId: string, password: string) {
+async function bulkApprove(classId: string) {
   if (!classId) throw new Error('classId is required');
   // 선착순(신청 시간순)으로, 예약 가능 인원(capacity)에서 이미 확정된 인원을 뺀 만큼을
   // '결제 안내 대상(payment_target)'으로 지정하고, 초과분은 자동으로 '대기(waitlisted)'로 저장한다.
@@ -279,7 +280,7 @@ async function bulkApprove(classId: string, password: string) {
       body: JSON.stringify({ ...updates, updated_at: new Date().toISOString() }),
     });
     // 선착순 통과(결제 안내 대상)에게만 결제 안내 문자 자동 발송. 대기자는 발송하지 않는다.
-    if (i < remaining) await notify(password, reservation, 'payment 안내', { class_date: info.label, place: info.place, payment_url: PAYMENT_LINK });
+    if (i < remaining) await notify(reservation, 'payment 안내', { class_date: info.label, place: info.place, payment_url: PAYMENT_LINK });
   }
   return { ok: true, capacity, remaining, approved, waitlisted };
 }
@@ -293,14 +294,14 @@ async function alreadyScheduledTypes(reservationId: string): Promise<Set<string>
 }
 
 // 결제 완료 시 리마인드(전날 18시)·복습(종료 시각)을 Solapi 예약 발송으로 등록.
-async function scheduleFollowups(password: string, reservation: Record<string, unknown>, info: { label: string; place: string; class_date: string; end_time: string }) {
+async function scheduleFollowups(reservation: Record<string, unknown>, info: { label: string; place: string; class_date: string; end_time: string }) {
   if (!reservation || !reservation.id || !info.class_date) return;
   const done = await alreadyScheduledTypes(String(reservation.id));
   const now = Date.now();
   const reminder = kstReminderSchedule(info.class_date);
   if (!done.has('class_reminder')) {
     if (reminder && reminder.atMs > now) {
-      await notify(password, reservation, 'class_reminder', { class_date: info.label, place: info.place }, reminder.scheduledDate);
+      await notify(reservation, 'class_reminder', { class_date: info.label, place: info.place }, reminder.scheduledDate);
     } else {
       // 발송 시각이 이미 지남 — 조용히 빠뜨리지 않고 skipped로 기록해 현황판에 노출.
       await logMessage(String(reservation.id), 'class_reminder', String(reservation.phone || ''), { ok: false, skipped: true, reason: '예약 발송 시각이 이미 지남' });
@@ -309,7 +310,7 @@ async function scheduleFollowups(password: string, reservation: Record<string, u
   const review = kstReviewSchedule(info.class_date, info.end_time);
   if (!done.has('review_material')) {
     if (review && review.atMs > now) {
-      await notify(password, reservation, 'review_material', { class_date: info.label, place: info.place }, review.scheduledDate);
+      await notify(reservation, 'review_material', { class_date: info.label, place: info.place }, review.scheduledDate);
     } else {
       await logMessage(String(reservation.id), 'review_material', String(reservation.phone || ''), { ok: false, skipped: true, reason: '예약 발송 시각이 이미 지남' });
     }
@@ -353,7 +354,7 @@ async function cancelScheduledFollowups(reservationId: string) {
 const RESENDABLE_TYPES = new Set(['reservation_received', 'payment 안내', 'seat_opened', 'payment_completed', 'class_reminder', 'review_material', 'reservation_cancelled']);
 
 // 현황판에서 미발송자에게 해당 종류 문자를 재발송한다.
-async function resendMessage(classId: string, messageType: string, reservationIds: string[], password: string) {
+async function resendMessage(classId: string, messageType: string, reservationIds: string[]) {
   if (!RESENDABLE_TYPES.has(messageType)) throw new Error('invalid messageType');
   if (!Array.isArray(reservationIds) || !reservationIds.length) return { ok: true, sent: 0 };
   const info = await classInfo(classId);
@@ -367,18 +368,18 @@ async function resendMessage(classId: string, messageType: string, reservationId
         ? kstReminderSchedule(info.class_date)
         : kstReviewSchedule(info.class_date, info.end_time);
       if (!sched || sched.atMs <= Date.now()) continue; // 예약 시각이 이미 지났으면 재예약 불가
-      await notify(password, reservation, messageType, { class_date: info.label, place: info.place }, sched.scheduledDate);
+      await notify(reservation, messageType, { class_date: info.label, place: info.place }, sched.scheduledDate);
     } else {
       const values: Record<string, string> = { class_date: info.label, place: info.place };
       if (messageType === 'payment 안내' || messageType === 'seat_opened') values.payment_url = PAYMENT_LINK;
-      await notify(password, reservation, messageType, values);
+      await notify(reservation, messageType, values);
     }
     sent += 1;
   }
   return { ok: true, sent };
 }
 
-async function updateReservation(reservationId: string, updates: Record<string, unknown>, password: string, notifyOverride?: string) {
+async function updateReservation(reservationId: string, updates: Record<string, unknown>, notifyOverride?: string) {
   const allowedKeys = new Set(['reservation_status', 'payment_status', 'waitlist_order', 'admin_memo']);
   const safeUpdates: Record<string, unknown> = { updated_at: new Date().toISOString() };
   for (const [key, value] of Object.entries(updates || {})) {
@@ -402,20 +403,20 @@ async function updateReservation(reservationId: string, updates: Record<string, 
     // 한 번에 오므로 expired를 먼저 매칭한다(만료 안내만 발송, 일반 취소 문자는 보내지 않음).
     if (updated.payment_status === 'expired') {
       const info = await classInfo(String(updated.class_id || ''));
-      await notify(password, updated, 'payment_expired', { class_date: info.label, place: info.place });
+      await notify(updated, 'payment_expired', { class_date: info.label, place: info.place });
       await cancelScheduledFollowups(String(updated.id));
     } else if (updated.reservation_status === 'cancelled') {
       const info = await classInfo(String(updated.class_id || ''));
-      await notify(password, updated, 'reservation_cancelled', { class_date: info.label, place: info.place });
+      await notify(updated, 'reservation_cancelled', { class_date: info.label, place: info.place });
       await cancelScheduledFollowups(String(updated.id));
     } else if (updated.reservation_status === 'payment_target' || updated.payment_status === 'sent') {
       const info = await classInfo(String(updated.class_id || ''));
       const messageType = notifyOverride === 'seat_opened' ? 'seat_opened' : 'payment 안내';
-      await notify(password, updated, messageType, { class_date: info.label, place: info.place, payment_url: PAYMENT_LINK });
+      await notify(updated, messageType, { class_date: info.label, place: info.place, payment_url: PAYMENT_LINK });
     } else if (updated.reservation_status === 'confirmed' || updated.payment_status === 'paid') {
       const info = await classInfo(String(updated.class_id || ''));
-      await notify(password, updated, 'payment_completed', { class_date: info.label, place: info.place });
-      await scheduleFollowups(password, updated, info);
+      await notify(updated, 'payment_completed', { class_date: info.label, place: info.place });
+      await scheduleFollowups(updated, info);
     }
   }
   return { ok: true, reservation: updated };
@@ -435,16 +436,15 @@ serve(async (req) => {
     if (action === 'createClass') return jsonResponse(await createClass(body.class || {}));
     if (action === 'updateClass') return jsonResponse(await updateClass(String(body.classId || ''), body.updates || {}));
     if (action === 'deleteClass') return jsonResponse(await deleteClass(String(body.classId || '')));
-    if (action === 'bulkApprove') return jsonResponse(await bulkApprove(String(body.classId || ''), password));
+    if (action === 'bulkApprove') return jsonResponse(await bulkApprove(String(body.classId || '')));
     if (action === 'updateReservation') {
-      return jsonResponse(await updateReservation(String(body.reservationId || ''), body.updates || {}, password, body.notify ? String(body.notify) : undefined));
+      return jsonResponse(await updateReservation(String(body.reservationId || ''), body.updates || {}, body.notify ? String(body.notify) : undefined));
     }
     if (action === 'resendMessage') {
       return jsonResponse(await resendMessage(
         String(body.classId || ''),
         String(body.messageType || ''),
         Array.isArray(body.reservationIds) ? body.reservationIds.map(String) : [],
-        password,
       ));
     }
 
