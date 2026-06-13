@@ -27,6 +27,10 @@
     </section>
 
     <section id="admin-app" class="mt-6 hidden space-y-6">
+      <div class="sticky top-0 z-10 flex items-center justify-between gap-3 rounded-2xl bg-slate-900/95 px-5 py-3 ring-1 ring-slate-700 backdrop-blur">
+        <p class="text-sm text-slate-300">최신 신청·상태를 확인하려면 <b class="text-white">브라우저 새로고침(F5) 대신</b> 이 버튼을 누르세요. (F5는 비밀번호를 다시 입력해야 합니다)</p>
+        <button id="refresh-button-top" type="button" class="shrink-0 rounded-xl bg-orange-500 px-5 py-2.5 font-bold text-white hover:bg-orange-600">🔄 새로고침</button>
+      </div>
       <section class="rounded-3xl bg-white p-6 text-slate-900">
         <div>
           <h2 class="text-xl font-extrabold">수업 일정 등록 / 관리</h2>
@@ -566,37 +570,20 @@
       }
     }
 
-    // 로그인 진입 공통 — 성공 시 비밀번호를 sessionStorage에 보관해 새로고침(F5)에도 재입력 없이 자동 재진입한다.
-    // sessionStorage는 탭/창을 닫으면 사라지므로 영구 저장 방식보다 노출 위험이 작다.
-    async function enterAdmin(password) {
-      adminPassword = password;
-      await loadAdminData();
-      try { sessionStorage.setItem('kb_admin_pw', password); } catch (_) { /* 비공개모드 등 — 무시 */ }
-      document.querySelector('[data-admin-login]').classList.add('hidden');
-      document.getElementById('admin-app').classList.remove('hidden');
-    }
-
+    // 비밀번호는 클라이언트(브라우저 저장소)에 보관하지 않는다(보안 정책). 새로고침(F5) 시 재입력이 필요하므로,
+    // 데이터 갱신은 페이지를 새로고침하지 말고 화면의 '새로고침' 버튼을 쓰면 비번 재입력 없이 최신 상태를 불러온다.
     document.getElementById('login-form').addEventListener('submit', async (event) => {
       event.preventDefault();
+      adminPassword = document.getElementById('admin-password').value;
       document.getElementById('login-message').textContent = '관리자 정보를 확인하는 중입니다.';
       try {
-        await enterAdmin(document.getElementById('admin-password').value);
+        await loadAdminData();
+        document.querySelector('[data-admin-login]').classList.add('hidden');
+        document.getElementById('admin-app').classList.remove('hidden');
       } catch (error) {
         document.getElementById('login-message').textContent = `접속 실패: ${error.message}`;
       }
     });
-
-    // 새로고침 후 저장된 비밀번호로 자동 재진입(검증 실패 시 보관값 폐기하고 로그인 화면 유지).
-    (async function tryAutoLogin() {
-      let saved = '';
-      try { saved = sessionStorage.getItem('kb_admin_pw') || ''; } catch (_) { saved = ''; }
-      if (!saved) return;
-      try {
-        await enterAdmin(saved);
-      } catch (_) {
-        try { sessionStorage.removeItem('kb_admin_pw'); } catch (_) { /* 무시 */ }
-      }
-    })();
 
     document.getElementById('bulk-approve-button').addEventListener('click', async () => {
       const classId = selectedClassId();
@@ -620,7 +607,9 @@
       const button = event.target.closest('[data-resend-type]');
       if (button) handleResend(button.dataset.resendType);
     });
-    document.getElementById('refresh-button').addEventListener('click', () => loadAdminData().catch((error) => { document.getElementById('admin-message').textContent = error.message; }));
+    function handleRefreshClick() { loadAdminData().catch((error) => { document.getElementById('admin-message').textContent = error.message; }); }
+    document.getElementById('refresh-button').addEventListener('click', handleRefreshClick);
+    document.getElementById('refresh-button-top').addEventListener('click', handleRefreshClick);
 
     document.getElementById('reservation-rows').addEventListener('change', (event) => {
       if (event.target.matches('[data-reservation-check]')) updateSelectedCount();
