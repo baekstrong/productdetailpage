@@ -159,10 +159,12 @@ async function sendSolapi(to: string, text: string, scheduledAt?: string) {
   };
   if (byteLength > 80) message.subject = '케틀벨 원데이 수업';
 
-  const payload: Record<string, unknown> = { message };
+  // 예약 발송(scheduledDate)은 단건 /send가 아니라 /send-many/detail 에서만 지원된다.
+  // messages는 배열, scheduledDate는 최상위(ISO8601, +09:00 KST)로 전달한다.
+  const payload: Record<string, unknown> = { messages: [message], allowDuplicates: true };
   if (scheduledAt) payload.scheduledDate = scheduledAt;
 
-  const response = await fetch('https://api.solapi.com/messages/v4/send', {
+  const response = await fetch('https://api.solapi.com/messages/v4/send-many/detail', {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization },
     body: JSON.stringify(payload),
@@ -171,13 +173,21 @@ async function sendSolapi(to: string, text: string, scheduledAt?: string) {
   if (!response.ok) {
     return { ok: false, error: result.errorMessage || result.message || `solapi send failed (${response.status})`, to: maskPhone(to) };
   }
+  // send-many/detail은 일부 실패해도 HTTP 200 — failedMessageList로 건별 실패를 판정한다.
+  const failed = Array.isArray(result.failedMessageList) ? result.failedMessageList : [];
+  if (failed.length > 0) {
+    const f = failed[0];
+    return { ok: false, error: f.statusMessage || f.statusCode || 'solapi send failed', to: maskPhone(to) };
+  }
+  const groupId = (result.groupInfo && result.groupInfo.groupId) || null;
+  const messageId = (Array.isArray(result.messageList) && result.messageList[0] && result.messageList[0].messageId) || null;
   return {
     ok: true,
     provider: 'solapi',
     to: maskPhone(to),
-    messageId: result.messageId || (result.groupInfo && result.groupInfo._id) || null,
-    groupId: result.groupId || (result.groupInfo && result.groupInfo._id) || null,
-    status: result.statusCode || 'sent',
+    messageId,
+    groupId,
+    status: (result.groupInfo && result.groupInfo.status) || 'sent',
     scheduledAt,
   };
 }

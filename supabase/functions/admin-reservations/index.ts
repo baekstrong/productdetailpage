@@ -117,13 +117,13 @@ function kstReminderSchedule(classDate: string): { scheduledDate: string; atMs: 
   const y = prev.getUTCFullYear();
   const m = String(prev.getUTCMonth() + 1).padStart(2, '0');
   const d = String(prev.getUTCDate()).padStart(2, '0');
-  return { scheduledDate: `${y}-${m}-${d} 18:00:00`, atMs: new Date(`${y}-${m}-${d}T18:00:00+09:00`).getTime() };
+  return { scheduledDate: `${y}-${m}-${d}T18:00:00+09:00`, atMs: new Date(`${y}-${m}-${d}T18:00:00+09:00`).getTime() };
 }
 
 function kstReviewSchedule(classDate: string, endTime: string): { scheduledDate: string; atMs: number } | null {
   const hm = String(endTime || '').slice(0, 5);
   if (!classDate || !/^\d{2}:\d{2}$/.test(hm)) return null;
-  return { scheduledDate: `${classDate} ${hm}:00`, atMs: new Date(`${classDate}T${hm}:00+09:00`).getTime() };
+  return { scheduledDate: `${classDate}T${hm}:00+09:00`, atMs: new Date(`${classDate}T${hm}:00+09:00`).getTime() };
 }
 
 // "2026-06-06" + "10:00" + "13:00" → "26년 6월 6일 10시~1시(3시간)"
