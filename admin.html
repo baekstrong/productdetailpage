@@ -354,7 +354,11 @@
     function summarizeMessageStatus(type, reservations, logs) {
       const types = Array.isArray(type) ? type : [type];
       const resById = {};
-      reservations.forEach((r) => { resById[r.id] = r; });
+      // 취소·불참 예약자는 발송 대상이 아니므로 현황 집계에서 제외(옛 실패 로그가 '제외'로 남지 않도록).
+      reservations.forEach((r) => {
+        if (r.reservation_status === 'cancelled' || r.reservation_status === 'no_show') return;
+        resById[r.id] = r;
+      });
       const byRes = {};
       (logs || []).forEach((log) => {
         if (!types.includes(log.message_type)) return;
