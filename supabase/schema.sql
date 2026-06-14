@@ -12,9 +12,13 @@ create table if not exists public.classes (
   capacity integer not null default 6 check (capacity > 0),
   is_public boolean not null default true,
   status text not null default 'open' check (status in ('open', 'waitlist', 'closed', 'hidden')),
+  google_event_id text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- 기존 classes 테이블에 캘린더 이벤트 연결용 컬럼 추가(수업↔구글 캘린더 이벤트 매핑).
+alter table public.classes add column if not exists google_event_id text;
 
 create table if not exists public.reservations (
   id uuid primary key default gen_random_uuid(),
