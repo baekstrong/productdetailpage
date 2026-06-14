@@ -82,12 +82,21 @@ function formatEventTitle(classDate: string): string {
 
 function eventBody(c: ClassEvent): Record<string, unknown> {
   const hm = (t: string) => String(t || '').slice(0, 5);
+  const start = hm(c.start_time);
+  const end = hm(c.end_time) || '16:00';
+  // 종료 시각이 시작보다 이르면(자정을 넘기는 수업) 종료 날짜를 하루 뒤로.
+  let endDate = c.class_date;
+  if (end < start) {
+    const d = new Date(`${c.class_date}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + 1);
+    endDate = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+  }
   return {
     summary: formatEventTitle(c.class_date),
     location: c.place || '근력학교 고대점',
     description: `케틀벨 원데이 수업 예약/안내 페이지: ${PRODUCT_URL}`,
-    start: { dateTime: `${c.class_date}T${hm(c.start_time)}:00`, timeZone: 'Asia/Seoul' },
-    end: { dateTime: `${c.class_date}T${hm(c.end_time) || '16:00'}:00`, timeZone: 'Asia/Seoul' },
+    start: { dateTime: `${c.class_date}T${start}:00`, timeZone: 'Asia/Seoul' },
+    end: { dateTime: `${endDate}T${end}:00`, timeZone: 'Asia/Seoul' },
   };
 }
 
@@ -102,6 +111,7 @@ async function calApi(method: string, suffix: string, body?: unknown): Promise<R
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) return null; // 404(이미 삭제됨) 포함 — 베스트 에포트라 무시
+  if (res.status === 204) return {}; // DELETE 성공은 본문 없음
   return await res.json().catch(() => ({}));
 }
 
