@@ -309,6 +309,36 @@ class StaticPageTests(unittest.TestCase):
         # 공개 페이지에서 조회 진입 링크 제공
         self.assertIn("lookup.html", index)
 
+    def test_google_calendar_sync(self):
+        cal = read_page("supabase/functions/admin-reservations/calendar.ts")
+        idx = read_page("supabase/functions/admin-reservations/index.ts")
+        schema = read_page("supabase/schema.sql")
+
+        # 캘린더 모듈: 서비스계정 JWT(RS256) → OAuth → Calendar REST
+        self.assertIn("oauth2.googleapis.com/token", cal)
+        self.assertIn("RSASSA-PKCS1-v1_5", cal)
+        self.assertIn("GOOGLE_CLIENT_EMAIL", cal)
+        self.assertIn("GOOGLE_PRIVATE_KEY", cal)
+        self.assertIn("GOOGLE_CALENDAR_ID", cal)
+        self.assertIn("calendar/v3/calendars", cal)
+        self.assertIn("Asia/Seoul", cal)
+        self.assertIn("[케틀벨 원데이]", cal)
+        self.assertIn("export async function createEvent", cal)
+        self.assertIn("export async function updateEvent", cal)
+        self.assertIn("export async function deleteEvent", cal)
+        # 시크릿 하드코딩 금지(Deno.env로만)
+        self.assertNotIn("BEGIN PRIVATE KEY-----\\nMI", cal)
+
+        # 통합: import + 세 CRUD에서 호출 + event_id 저장
+        self.assertIn("from './calendar.ts'", idx)
+        self.assertIn("createEvent", idx)
+        self.assertIn("updateEvent", idx)
+        self.assertIn("deleteEvent", idx)
+        self.assertIn("google_event_id", idx)
+
+        # 스키마: 컬럼 추가
+        self.assertIn("google_event_id", schema)
+
 
 if __name__ == "__main__":
     unittest.main()
