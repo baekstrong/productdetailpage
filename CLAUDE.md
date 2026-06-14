@@ -74,10 +74,12 @@ supabase functions deploy submit-reservation --no-verify-jwt
 - **`smartstore/`** — 스마트스토어 상세페이지 이미지 자산(png/jpg).
 
 ### Supabase
-- **스키마** (`supabase/schema.sql`): `classes`, `reservations`, `message_logs` 테이블 + `class_reservation_summary` 뷰. RLS 활성화 — anon은 공개 class 요약 읽기만 가능(예약 insert는 `submit-reservation` 함수 경유, 직접 insert 정책 없음), reservations/message_logs 직접 read 차단. `(class_id, phone)` 활성 신청 unique 인덱스(`reservations_active_unique`)로 중복 신청 차단. 관리자 read/update는 service_role을 쓰는 Edge Function 경유.
+- **스키마** (`supabase/schema.sql`): `classes`, `reservations`, `message_logs` 테이블 + `class_reservation_summary` 뷰. `classes.google_event_id`는 수업↔구글 캘린더 이벤트 매핑용. RLS 활성화 — anon은 공개 class 요약 읽기만 가능(예약 insert는 `submit-reservation` 함수 경유, 직접 insert 정책 없음), reservations/message_logs 직접 read 차단. `(class_id, phone)` 활성 신청 unique 인덱스(`reservations_active_unique`)로 중복 신청 차단. 관리자 read/update는 service_role을 쓰는 Edge Function 경유.
 - **Edge Functions** (`supabase/functions/`):
   - `submit-reservation` — 공개 신청 엔드포인트(비밀번호 없음). 검증(이름·010 11자리·개인정보 동의) → 신청 가능 수업 확인 → 중복 차단(409) → service_role insert → 접수 확인 문자(베스트 에포트).
-  - `admin-reservations` — 비밀번호 검증 후 service_role로 예약 목록 조회/상태 업데이트(상태 변경 요청일 때만 문자 트리거). 업데이트 허용 필드 화이트리스트(`reservation_status`, `payment_status`, `waitlist_order`, `admin_memo`).
+  - `lookup-reservation` — 공개 본인 조회(이름+전화 정확 일치). 고객용 상태 라벨만 반환, 대기 순번 등 내부 정보 비노출.
+  - `admin-reservations` — 비밀번호 검증 후 service_role로 예약 목록 조회/상태 업데이트(상태 변경 요청일 때만 문자 트리거). 수업 CRUD(`createClass`/`updateClass`/`deleteClass`) 시 `calendar.ts`로 구글 캘린더 이벤트 동기화(베스트 에포트). 업데이트 허용 필드 화이트리스트(`reservation_status`, `payment_status`, `waitlist_order`, `admin_memo`).
+  - `admin-reservations/calendar.ts` — 서비스 계정 JWT(RS256)→OAuth→Google Calendar v3 REST. 시크릿 `GOOGLE_CLIENT_EMAIL`/`GOOGLE_PRIVATE_KEY`/`GOOGLE_CALENDAR_ID`(근력학교 앱과 동일 재사용), 미설정 시 안전 skip.
   - `solapi-reservations` — 메시지 타입별 템플릿 채워 Solapi 발송(HMAC-SHA256, 예약 발송 `scheduledDate`/취소 `cancelGroupId` 지원, 시크릿 없으면 안전 skip). 인증은 ① 내부 호출(Bearer service_role) 또는 ② 관리자 비밀번호. 복습 영상 링크는 자동 발송 대상이 아님.
 
 ### 문서
@@ -92,7 +94,7 @@ supabase functions deploy submit-reservation --no-verify-jwt
 
 ## 주의사항 / 함정
 
-- **시크릿 절대 클라이언트 노출 금지**: `index.html`/`admin.html`에는 Supabase **anon(publishable) key**만 둔다. `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_PASSWORD_HASH`, `SOLAPI_API_KEY`/`SOLAPI_API_SECRET`는 **Edge Function 환경변수(Deno.env)로만** 설정한다. 테스트가 `admin.html`에 `service_role` 문자열이 없는지 검사한다.
+- **시크릿 절대 클라이언트 노출 금지**: `index.html`/`admin.html`에는 Supabase **anon(publishable) key**만 둔다. `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_PASSWORD_HASH`, `SOLAPI_API_KEY`/`SOLAPI_API_SECRET`, `GOOGLE_CLIENT_EMAIL`/`GOOGLE_PRIVATE_KEY`/`GOOGLE_CALENDAR_ID`는 **Edge Function 환경변수(Deno.env)로만** 설정한다. 테스트가 `admin.html`에 `service_role` 문자열이 없는지 검사한다.
 - 새 Edge Function/시크릿은 `supabase secrets set`으로 설정하고 코드/저장소에 하드코딩하지 말 것.
 - 계약 테스트의 `assertNotIn`이 많다(데모 이름 `홍길동`/`김철수`, 비밀번호 `8156`, `<details>`, `name="email"`, `rest/v1/reservations`, `admin-auth` 등 금지). 리팩터링 시 이 금지 항목을 되살리지 말 것.
 - 공개 배포 전 백관장 승인이 필요(`AGENTS.md` 14항).
