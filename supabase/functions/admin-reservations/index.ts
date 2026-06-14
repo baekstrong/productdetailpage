@@ -1,4 +1,5 @@
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
+import { createEvent, updateEvent, deleteEvent } from './calendar.ts';
 
 const corsHeaders = {
   'access-control-allow-origin': '*',
@@ -230,7 +231,20 @@ async function createClass(input: Record<string, unknown>) {
     headers: { prefer: 'return=representation' },
     body: JSON.stringify(row),
   });
-  return { ok: true, class: Array.isArray(created) ? created[0] : created };
+  const classRow = Array.isArray(created) ? created[0] : created;
+  // 캘린더 이벤트 생성(베스트 에포트) 후 event_id 연결.
+  if (classRow && classRow.id) {
+    const eventId = await createEvent(classRow);
+    if (eventId) {
+      await supabaseFetch(`classes?id=eq.${encodeURIComponent(String(classRow.id))}`, {
+        method: 'PATCH',
+        headers: { prefer: 'return=minimal' },
+        body: JSON.stringify({ google_event_id: eventId }),
+      });
+      classRow.google_event_id = eventId;
+    }
+  }
+  return { ok: true, class: classRow };
 }
 
 async function updateClass(classId: string, updates: Record<string, unknown>) {
@@ -242,11 +256,32 @@ async function updateClass(classId: string, updates: Record<string, unknown>) {
     headers: { prefer: 'return=representation' },
     body: JSON.stringify(row),
   });
-  return { ok: true, class: Array.isArray(updated) ? updated[0] : updated };
+  const classRow = Array.isArray(updated) ? updated[0] : updated;
+  // 캘린더 반영(베스트 에포트): 이벤트가 있으면 갱신, 없으면 새로 생성 후 연결.
+  if (classRow && classRow.id) {
+    if (classRow.google_event_id) {
+      await updateEvent(String(classRow.google_event_id), classRow);
+    } else {
+      const eventId = await createEvent(classRow);
+      if (eventId) {
+        await supabaseFetch(`classes?id=eq.${encodeURIComponent(String(classRow.id))}`, {
+          method: 'PATCH',
+          headers: { prefer: 'return=minimal' },
+          body: JSON.stringify({ google_event_id: eventId }),
+        });
+        classRow.google_event_id = eventId;
+      }
+    }
+  }
+  return { ok: true, class: classRow };
 }
 
 async function deleteClass(classId: string) {
   if (!classId) throw new Error('classId is required');
+  // 삭제 전에 연결된 캘린더 이벤트 id를 확보해 캘린더에서도 제거(베스트 에포트).
+  const rows = await supabaseFetch(`classes?id=eq.${encodeURIComponent(classId)}&select=google_event_id`);
+  const eventId = Array.isArray(rows) && rows[0] ? String(rows[0].google_event_id || '') : '';
+  if (eventId) await deleteEvent(eventId);
   // public.reservations rows for this class are removed via ON DELETE CASCADE.
   await supabaseFetch(`classes?id=eq.${encodeURIComponent(classId)}`, { method: 'DELETE' });
   return { ok: true };
