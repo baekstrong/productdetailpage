@@ -3,6 +3,8 @@
 > 이 문서는 **작업 종료 시마다 갱신**한다. 다음 세션이 이 문서만 읽고 바로 이어서 작업할 수 있도록 유지한다.
 > 상세 아키텍처는 `CLAUDE.md`, 운영/콘텐츠 정책은 `AGENTS.md` 참고.
 
+> ⏭️ **진행 중(다음 작업) — 관리자 월간 캘린더 UI**: 설계 `docs/superpowers/specs/2026-06-15-admin-calendar-ui-design.md`, **구현 계획 `docs/superpowers/plans/2026-06-15-admin-calendar-ui.md`(커밋 6b15b21)**. 승인 완료, **서브에이전트-드리븐으로 구현 예정**(아직 코드 미착수). 요지: admin.html에 월간 캘린더 추가(칸=시간·상태·신청현황, 빈날짜→등록 모달/수업→수정·삭제 모달), 등록/수정 공용 모달(인라인 폼 대체), 목록 표 행 클릭→수업 선택+하이라이트, "일정 선택" 드롭다운 제거(`selectedClassId`→`currentClassId` 변수화). 백엔드·DB 변경 없음. Task 1→6 순서대로(의존성 있음). 다음 세션은 이 계획 파일을 읽고 `superpowers:subagent-driven-development`로 실행할 것.
+
 **마지막 갱신:** 2026-06-15 (**구글 캘린더 동기화 — 배포·검증 완료**: 수업 생성/수정/삭제 시 `admin-reservations`가 구글 Calendar v3 이벤트를 베스트 에포트로 생성·갱신·삭제(`calendar.ts`, 서비스계정 JWT(RS256)→OAuth→REST Deno 직접 호출). `classes.google_event_id` 컬럼·시크릿 3개(`GOOGLE_CLIENT_EMAIL`/`GOOGLE_PRIVATE_KEY`/`GOOGLE_CALENDAR_ID`, 근력학교 앱과 동일 서비스계정·캘린더 재사용) 라이브 적용 완료. 이벤트 제목 `[케틀벨 원데이] M월 D일 (요일)`, **파란색 colorId 9**(근력학교 일정과 구분). 기존 수업 일괄 등록 버튼(`backfillCalendar`). **결제완료 예약 있는 수업 삭제 방어**(force 재확인 필요). 실제 캘린더 생성/색상 검증 완료(아이폰 기본 캘린더는 캘린더색으로 덮어 보일 수 있음 — 구글 캘린더 앱/웹에선 파랑 정상). 계약 테스트 15개 통과.) (이전: 1차 + 운영 피드백 다수 반영·배포 완료 — 예약 문자 버그 수정(`send-many/detail`+ISO8601), 취소 시 자리 복구(취소·불참 집계 제외), 접수 문자 2분기(정원 내/만석), 본인 예약 조회 페이지(`lookup.html`+`lookup-reservation`), 어드민 기본 시간 13:00~16:00, 현황판 실제 이름 표시, 상단 새로고침 버튼.)
 
 > **공개 직전 체크리스트(미완 추정 — 확인 필요)**: ① 라이브 뷰 SQL 적용(`class_reservation_summary` 취소 제외 — 미적용 시 고객 달력 인원 부정확) ② 테스트 데이터 정리(`delete from message_logs; delete from reservations;`) ③ 노출된 Supabase PAT 폐기 ④ 공개 전 백관장 승인(AGENTS.md 14항 — 운영자 본인 최종 검토).
