@@ -231,6 +231,11 @@
       return currentClassId;
     }
 
+    function setSelectedClass(id) {
+      currentClassId = id;
+      renderAdminData();
+    }
+
     async function callAdminApi(action, payload = {}) {
       if (!SUPABASE_URL || !SUPABASE_ANON_KEY) throw new Error('서버 설정이 없습니다.');
       const response = await fetch(`${SUPABASE_URL}/functions/v1/admin-reservations`, {
@@ -497,8 +502,10 @@
         const time = `${String(c.start_time || '').slice(0, 5)}~${String(c.end_time || '').slice(0, 5)}`;
         const past = isPastClass(c);
         const pastBadge = past ? ' <span class="ml-1 rounded-full bg-slate-200 px-2 py-0.5 text-xs font-bold text-slate-500">종료</span>' : '';
+        const selected = c.class_id === currentClassId;
+        const rowClass = `cursor-pointer border-b border-slate-100 align-middle${past ? ' bg-slate-50 text-slate-400' : ''}${selected ? ' bg-blue-50 ring-2 ring-blue-300' : ''}`;
         return `
-          <tr class="border-b border-slate-100 align-middle${past ? ' bg-slate-50 text-slate-400' : ''}">
+          <tr data-select-class="${escapeHtml(c.class_id)}" class="${rowClass}">
             <td class="p-3 font-bold">${escapeHtml(c.class_date)} ${escapeHtml(time)}${pastBadge}</td>
             <td class="p-3">${escapeHtml(c.place || '')}</td>
             <td class="p-3">${escapeHtml(c.capacity)}</td>
@@ -738,7 +745,11 @@
 
     document.getElementById('class-rows').addEventListener('click', async (event) => {
       const button = event.target.closest('button[data-class-action]');
-      if (!button) return;
+      if (!button) {
+        const row = event.target.closest('[data-select-class]');
+        if (row) setSelectedClass(row.dataset.selectClass);
+        return;
+      }
       const classId = button.dataset.classId;
       const action = button.dataset.classAction;
       const classItem = adminData.classes.find((c) => c.class_id === classId);
