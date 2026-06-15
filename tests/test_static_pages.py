@@ -146,7 +146,6 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("ADMIN_PASSWORD_HASH", html)
         self.assertIn("Supabase", html)
         self.assertIn("data-admin-login", html)
-        self.assertIn("data-class-form", html)
         self.assertIn("data-reservation-table", html)
         self.assertIn("수업일별 예약/신청 현황", html)
         self.assertIn("휴대폰 번호 마스킹", html)
@@ -165,6 +164,25 @@ class StaticPageTests(unittest.TestCase):
         self.assertNotIn("demoReservations", html)
         self.assertNotIn("8156", html)
         self.assertNotIn("service_role", html)
+
+    def test_admin_calendar_ui(self):
+        html = read_page("admin.html")
+        # 월간 캘린더
+        self.assertIn('id="admin-cal-body"', html)
+        self.assertIn("renderAdminCalendar", html)
+        self.assertIn("data-cal-date", html)
+        self.assertIn("data-cal-class", html)
+        # 등록/수정 모달
+        self.assertIn('id="class-modal"', html)
+        self.assertIn("openClassModal", html)
+        self.assertIn("modal-class-date", html)
+        # 표 행 선택
+        self.assertIn("data-select-class", html)
+        self.assertIn("setSelectedClass", html)
+        self.assertIn("currentClassId", html)
+        # 드롭다운/인라인 폼 제거
+        self.assertNotIn('id="class-filter"', html)
+        self.assertNotIn('id="class-create-form"', html)
 
     def test_admin_reservations_edge_function_protects_private_reads(self):
         edge = read_page("supabase/functions/admin-reservations/index.ts")
