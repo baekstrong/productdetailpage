@@ -45,6 +45,23 @@
           <button id="class-create-button" type="button" class="rounded-xl bg-orange-500 px-5 py-3 font-bold text-white hover:bg-orange-600">+ 수업 등록</button>
         </div>
 
+        <div class="mt-5 rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
+          <div class="flex items-center justify-between gap-2">
+            <p id="admin-cal-title" class="text-lg font-extrabold"></p>
+            <div class="flex items-center gap-2">
+              <button id="admin-cal-prev" type="button" class="rounded-lg bg-white px-3 py-2 font-bold ring-1 ring-slate-200">‹</button>
+              <button id="admin-cal-today" type="button" class="rounded-lg bg-white px-3 py-2 text-sm font-bold ring-1 ring-slate-200">오늘</button>
+              <button id="admin-cal-next" type="button" class="rounded-lg bg-white px-3 py-2 font-bold ring-1 ring-slate-200">›</button>
+              <button id="admin-cal-add" type="button" class="rounded-lg bg-orange-500 px-3 py-2 text-sm font-bold text-white">＋ 새 수업</button>
+            </div>
+          </div>
+          <div class="mt-3 grid grid-cols-7 gap-1 text-center text-xs font-bold text-slate-400">
+            <div>일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div>토</div>
+          </div>
+          <div id="admin-cal-body" class="mt-1 grid grid-cols-7 gap-1"></div>
+          <p class="mt-2 text-xs text-slate-400">빈 날짜를 누르면 등록, 수업을 누르면 수정/삭제 창이 열립니다.</p>
+        </div>
+
         <div class="mt-6 overflow-x-auto">
           <table class="min-w-full text-left text-sm">
             <thead class="bg-slate-100 text-slate-600">
@@ -422,6 +439,51 @@
       renderReservations(reservationsForSelectedClass(), currentClass);
       renderMessageStatus();
       renderClassManager(adminData.classes); // 선택 하이라이트 갱신 위해 표도 다시 렌더
+      renderAdminCalendar();
+    }
+
+    let adminCalView = null;
+    function adminCalToday() { const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() }; }
+    function adminCalDefaultView() {
+      const up = upcomingClasses(adminData.classes)[0];
+      if (up && up.class_date) { const p = up.class_date.split('-'); return { year: Number(p[0]), month: Number(p[1]) - 1 }; }
+      return adminCalToday();
+    }
+    function adminCalBadge(c) {
+      const time = `${String(c.start_time || '').slice(0, 5)}~${String(c.end_time || '').slice(0, 5)}`;
+      const tone = c.status === 'hidden' ? 'bg-slate-200 text-slate-500'
+        : c.status === 'closed' ? 'bg-rose-100 text-rose-700'
+        : c.status === 'waitlist' ? 'bg-amber-100 text-amber-700'
+        : 'bg-blue-100 text-blue-700';
+      const dim = c.is_public === false ? ' opacity-50' : '';
+      const counts = `확정 ${c.confirmed_count || 0}·가능 ${c.available_count || 0}·대기 ${c.waitlist_count || 0}`;
+      return `<button type="button" data-cal-class="${escapeHtml(c.class_id)}" class="block w-full rounded-md ${tone}${dim} px-1 py-0.5 text-left text-[10px] leading-tight">`
+        + `<span class="block font-bold">${escapeHtml(time)}</span>`
+        + `<span class="block">${escapeHtml(statusLabels[c.status] || c.status)}</span>`
+        + `<span class="block text-[9px]">${escapeHtml(counts)}</span></button>`;
+    }
+    function renderAdminCalendar() {
+      const body = document.getElementById('admin-cal-body');
+      if (!body) return;
+      if (!adminCalView) adminCalView = adminCalDefaultView();
+      const { year, month } = adminCalView;
+      document.getElementById('admin-cal-title').textContent = `${year}년 ${month + 1}월`;
+      const byDate = {};
+      adminData.classes.forEach((c) => { (byDate[c.class_date] = byDate[c.class_date] || []).push(c); });
+      const pad2 = (n) => (n < 10 ? '0' : '') + n;
+      const startDow = new Date(year, month, 1).getDay();
+      const days = new Date(year, month + 1, 0).getDate();
+      const cells = [];
+      for (let i = 0; i < startDow; i += 1) cells.push('<div class="min-h-[84px] rounded-lg bg-white/40"></div>');
+      for (let d = 1; d <= days; d += 1) {
+        const dateStr = `${year}-${pad2(month + 1)}-${pad2(d)}`;
+        const items = (byDate[dateStr] || []).slice().sort((a, b) => (String(a.start_time) < String(b.start_time) ? -1 : 1));
+        cells.push(`<div data-cal-date="${dateStr}" class="min-h-[84px] cursor-pointer rounded-lg bg-white p-1 ring-1 ring-slate-200 hover:ring-blue-300">`
+          + `<div class="text-right text-[11px] font-bold text-slate-500">${d}</div>`
+          + `<div class="mt-0.5 flex flex-col gap-0.5">${items.map(adminCalBadge).join('')}</div></div>`);
+      }
+      while (cells.length % 7 !== 0) cells.push('<div class="min-h-[84px] rounded-lg bg-white/40"></div>');
+      body.innerHTML = cells.join('');
     }
 
     function renderClassManager(classes) {
@@ -712,6 +774,27 @@
         message.textContent = `처리 실패: ${error.message}`;
       }
     });
+
+    document.getElementById('admin-cal-body').addEventListener('click', (event) => {
+      const classBtn = event.target.closest('[data-cal-class]');
+      if (classBtn) {
+        const c = adminData.classes.find((x) => x.class_id === classBtn.dataset.calClass);
+        if (c) openClassModal('edit', c);
+        return;
+      }
+      const dateCell = event.target.closest('[data-cal-date]');
+      if (dateCell) openClassModal('create', { class_date: dateCell.dataset.calDate });
+    });
+    function adminCalShift(delta) {
+      const base = adminCalView || adminCalDefaultView();
+      const d = new Date(base.year, base.month + delta, 1);
+      adminCalView = { year: d.getFullYear(), month: d.getMonth() };
+      renderAdminCalendar();
+    }
+    document.getElementById('admin-cal-prev').addEventListener('click', () => adminCalShift(-1));
+    document.getElementById('admin-cal-next').addEventListener('click', () => adminCalShift(1));
+    document.getElementById('admin-cal-today').addEventListener('click', () => { adminCalView = adminCalToday(); renderAdminCalendar(); });
+    document.getElementById('admin-cal-add').addEventListener('click', () => openClassModal('create', {}));
 
     window.__adminEndpoints = { adminReservationsEndpoint, solapiEndpoint };
     window.callAdminApi = callAdminApi;
