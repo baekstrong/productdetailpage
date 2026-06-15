@@ -3,7 +3,9 @@
 > 이 문서는 **작업 종료 시마다 갱신**한다. 다음 세션이 이 문서만 읽고 바로 이어서 작업할 수 있도록 유지한다.
 > 상세 아키텍처는 `CLAUDE.md`, 운영/콘텐츠 정책은 `AGENTS.md` 참고.
 
-**마지막 갱신:** 2026-06-14 (**구글 캘린더 동기화 추가**: 수업 생성/수정/삭제 시 `admin-reservations`가 구글 Calendar v3 이벤트를 베스트 에포트로 생성·갱신·삭제. 서비스계정 JWT(RS256)→OAuth→REST를 Deno에서 직접 호출(`calendar.ts` 신규). `classes.google_event_id` 컬럼 추가. 시크릿 `GOOGLE_CLIENT_EMAIL`/`GOOGLE_PRIVATE_KEY`/`GOOGLE_CALENDAR_ID` 미설정 시 조용히 skip(캘린더 실패해도 수업 작업은 성공). **배포 전 할 일**: ① `supabase/schema.sql`의 `alter table … add column google_event_id` 를 라이브 DB에 적용 ② `supabase secrets set`으로 세 시크릿 설정(근력학교 앱과 동일 서비스계정·캘린더 재사용) ③ `supabase functions deploy admin-reservations` 재배포 ④ 실제 캘린더 반영 수동 검증. 계약 테스트 15개 통과.) (이전: 1차 + 운영 피드백 다수 반영·배포 완료. **예약 문자 버그 수정**(`send-many/detail`+ISO8601), **취소 시 자리 복구**(취소·불참을 모든 집계에서 제외, 뷰도 수정 — 라이브 뷰 SQL 적용 필요), **접수 문자 2분기**(정원 내 성공/만석 대기), **본인 예약 조회 페이지**(`lookup.html`+`lookup-reservation` 함수 — 이름+전화 일치, 배포·스모크 통과), 어드민 기본 시간 13:00~16:00, 현황판 실제 이름 표시 + 취소·불참 예약자 집계 제외, 상단 새로고침 버튼(F5 비번 재입력 회피 — 비번은 보안상 클라이언트 미저장 유지). **공개 직전 체크리스트**: ① 라이브 뷰 SQL 적용(취소 제외 confirmed_count — 미적용 시 고객 달력 인원 부정확) ② 테스트 데이터 정리(`delete from message_logs; delete from reservations;`) ③ 노출된 Supabase PAT 폐기 ④ 공개 전 백관장 승인(AGENTS.md 14항).)
+**마지막 갱신:** 2026-06-15 (**구글 캘린더 동기화 — 배포·검증 완료**: 수업 생성/수정/삭제 시 `admin-reservations`가 구글 Calendar v3 이벤트를 베스트 에포트로 생성·갱신·삭제(`calendar.ts`, 서비스계정 JWT(RS256)→OAuth→REST Deno 직접 호출). `classes.google_event_id` 컬럼·시크릿 3개(`GOOGLE_CLIENT_EMAIL`/`GOOGLE_PRIVATE_KEY`/`GOOGLE_CALENDAR_ID`, 근력학교 앱과 동일 서비스계정·캘린더 재사용) 라이브 적용 완료. 이벤트 제목 `[케틀벨 원데이] M월 D일 (요일)`, **파란색 colorId 9**(근력학교 일정과 구분). 기존 수업 일괄 등록 버튼(`backfillCalendar`). **결제완료 예약 있는 수업 삭제 방어**(force 재확인 필요). 실제 캘린더 생성/색상 검증 완료(아이폰 기본 캘린더는 캘린더색으로 덮어 보일 수 있음 — 구글 캘린더 앱/웹에선 파랑 정상). 계약 테스트 15개 통과.) (이전: 1차 + 운영 피드백 다수 반영·배포 완료 — 예약 문자 버그 수정(`send-many/detail`+ISO8601), 취소 시 자리 복구(취소·불참 집계 제외), 접수 문자 2분기(정원 내/만석), 본인 예약 조회 페이지(`lookup.html`+`lookup-reservation`), 어드민 기본 시간 13:00~16:00, 현황판 실제 이름 표시, 상단 새로고침 버튼.)
+
+> **공개 직전 체크리스트(미완 추정 — 확인 필요)**: ① 라이브 뷰 SQL 적용(`class_reservation_summary` 취소 제외 — 미적용 시 고객 달력 인원 부정확) ② 테스트 데이터 정리(`delete from message_logs; delete from reservations;`) ③ 노출된 Supabase PAT 폐기 ④ 공개 전 백관장 승인(AGENTS.md 14항 — 운영자 본인 최종 검토).
 
 > 문자 템플릿 정책: `[근력학교]` 접두어 없음(LMS 제목 '케틀벨 원데이 수업'). 결제 마감은 **24시간 고정 문구**("안내 문자를 받은 뒤 24시간 이내")로, 시각 입력 없이 운영. AGENTS.md 9항 톤(여러 줄) 반영. 결제 안내/확정 문자는 수업별 `{장소}`까지 채움.
 
@@ -15,6 +17,14 @@
 
 ## 2. 이번까지 완료한 기능
 
+- **구글 캘린더 동기화 — 구현·배포·검증 완료(2026-06-15)** (`admin-reservations/calendar.ts` 신규 + `index.ts` + `admin.html` + `schema.sql`)
+  - 수업 등록→이벤트 생성, 수정→갱신, 삭제→제거. 베스트 에포트(시크릿 미설정/캘린더 실패해도 수업 CRUD 정상).
+  - Deno에서 서비스계정 JWT(RS256)→OAuth(`oauth2.googleapis.com/token`)→Calendar v3 REST 직접 호출. 근력학교 앱과 **같은 서비스계정·같은 캘린더** 재사용(시크릿 3개 라이브 설정 완료). 토큰 메모리 캐시. private key는 `\n` 복원 후 DER 디코드.
+  - `classes.google_event_id` 컬럼으로 수업↔이벤트 연결(라이브 DB 적용 완료). `pickClassFields`가 클라 주입 차단.
+  - 이벤트: 제목 `[케틀벨 원데이] M월 D일 (요일)`, 시간 `Asia/Seoul`(자정 넘김 시 종료일 +1), 장소·예약링크, **colorId 9(파랑)**.
+  - **일괄 등록 버튼**(`backfillCalendar` 액션): `google_event_id` 없는 기존 수업을 한 번에 캘린더 등록(멱등 — 재실행 안전).
+  - **삭제 방어**: 결제완료(confirmed/paid) 예약 있는 수업은 `deleteClass`가 차단, `force:true`(관리자 재확인) 시에만 삭제.
+  - 설계/계획: `docs/superpowers/specs/2026-06-14-google-calendar-sync-design.md`, `docs/superpowers/plans/2026-06-14-google-calendar-sync.md`.
 - **스키마/테스트 배치 — 코드 완료(2026-06-13, 라이브 DB 미반영)** (`supabase/schema.sql` + `tests/test_static_pages.py`)
   - `anon can create reservation` insert 정책 삭제 — 예약 신청은 submit-reservation(service_role) 경유만 허용.
   - 부분 unique 인덱스 `reservations_active_unique` 추가: `(class_id, phone)` where `reservation_status not in ('cancelled','no_show')` — 같은 수업·같은 번호 활성 신청 중복을 DB 차원에서 차단.
