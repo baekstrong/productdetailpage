@@ -287,6 +287,28 @@ async function deleteClass(classId: string) {
   return { ok: true };
 }
 
+// 아직 캘린더에 등록되지 않은(google_event_id 없는) 수업들을 일괄로 캘린더에 생성한다.
+async function backfillCalendar() {
+  const rows = await supabaseFetch('classes?google_event_id=is.null&select=*&order=class_date.asc');
+  const list = Array.isArray(rows) ? rows : [];
+  let created = 0;
+  let failed = 0;
+  for (const c of list) {
+    const eventId = await createEvent(c);
+    if (eventId) {
+      await supabaseFetch(`classes?id=eq.${encodeURIComponent(String(c.id))}`, {
+        method: 'PATCH',
+        headers: { prefer: 'return=minimal' },
+        body: JSON.stringify({ google_event_id: eventId }),
+      });
+      created += 1;
+    } else {
+      failed += 1;
+    }
+  }
+  return { ok: true, total: list.length, created, failed };
+}
+
 async function bulkApprove(classId: string) {
   if (!classId) throw new Error('classId is required');
   // 선착순(신청 시간순)으로, 예약 가능 인원(capacity)에서 이미 확정된 인원을 뺀 만큼을
@@ -477,6 +499,7 @@ serve(async (req) => {
     if (action === 'createClass') return jsonResponse(await createClass(body.class || {}));
     if (action === 'updateClass') return jsonResponse(await updateClass(String(body.classId || ''), body.updates || {}));
     if (action === 'deleteClass') return jsonResponse(await deleteClass(String(body.classId || '')));
+    if (action === 'backfillCalendar') return jsonResponse(await backfillCalendar());
     if (action === 'bulkApprove') return jsonResponse(await bulkApprove(String(body.classId || '')));
     if (action === 'updateReservation') {
       return jsonResponse(await updateReservation(String(body.reservationId || ''), body.updates || {}, body.notify ? String(body.notify) : undefined));
