@@ -41,33 +41,9 @@
         </div>
         <p id="backfill-calendar-message" class="mt-2 text-xs text-slate-500">아직 구글 캘린더에 안 올라간 기존 수업을 한 번에 등록합니다. (이미 올라간 수업은 건너뜁니다)</p>
         </div>
-        <form id="class-create-form" class="mt-5 grid gap-3 md:grid-cols-12">
-          <input type="hidden" id="class-edit-id" />
-          <label class="md:col-span-3 grid gap-1 text-xs font-bold text-slate-600">수업 날짜
-            <input id="new-class-date" type="date" required class="rounded-xl border border-slate-300 px-3 py-2.5 font-normal text-slate-900" /></label>
-          <label class="md:col-span-2 grid gap-1 text-xs font-bold text-slate-600">시작 시간
-            <input id="new-class-start" type="time" required value="13:00" class="rounded-xl border border-slate-300 px-3 py-2.5 font-normal text-slate-900" /></label>
-          <label class="md:col-span-2 grid gap-1 text-xs font-bold text-slate-600">종료 시간
-            <input id="new-class-end" type="time" required value="16:00" class="rounded-xl border border-slate-300 px-3 py-2.5 font-normal text-slate-900" /></label>
-          <label class="md:col-span-2 grid gap-1 text-xs font-bold text-slate-600">정원
-            <input id="new-class-capacity" type="number" min="1" value="6" required class="rounded-xl border border-slate-300 px-3 py-2.5 font-normal text-slate-900" /></label>
-          <label class="md:col-span-3 grid gap-1 text-xs font-bold text-slate-600">장소
-            <input id="new-class-place" type="text" value="근력학교 고대점" class="rounded-xl border border-slate-300 px-3 py-2.5 font-normal text-slate-900" /></label>
-          <label class="md:col-span-3 grid gap-1 text-xs font-bold text-slate-600">상태
-            <select id="new-class-status" class="rounded-xl border border-slate-300 px-3 py-2.5 font-normal text-slate-900">
-              <option value="open">예약 가능</option>
-              <option value="waitlist">대기 가능</option>
-              <option value="closed">마감</option>
-              <option value="hidden">숨김</option>
-            </select></label>
-          <label class="md:col-span-3 flex items-center gap-2 pt-5 text-xs font-bold text-slate-600">
-            <input id="new-class-public" type="checkbox" checked class="h-4 w-4" /> 고객 페이지에 공개</label>
-          <div class="md:col-span-6 flex items-end gap-2">
-            <button id="class-submit-button" type="submit" class="rounded-xl bg-orange-500 px-5 py-3 font-bold text-white">수업 등록</button>
-            <button id="class-reset-button" type="button" class="hidden rounded-xl bg-slate-200 px-5 py-3 font-bold text-slate-700">새로 등록(초기화)</button>
-          </div>
-        </form>
-        <p id="class-form-message" class="mt-3 text-sm text-slate-500">날짜·시간·정원을 입력하고 등록하면 고객 페이지 달력에 바로 반영됩니다.</p>
+        <div class="mt-5">
+          <button id="class-create-button" type="button" class="rounded-xl bg-orange-500 px-5 py-3 font-bold text-white hover:bg-orange-600">+ 수업 등록</button>
+        </div>
 
         <div class="mt-6 overflow-x-auto">
           <table class="min-w-full text-left text-sm">
@@ -149,6 +125,43 @@
         <p class="mt-2 text-sm text-slate-500">선택한 일정 기준으로 단계별 안내 문자의 발송/예약 여부를 보여줍니다. 일부가 누락되면 제외 명단과 재발송 버튼이 나타납니다.</p>
         <div id="message-status-rows" class="mt-4"></div>
       </section>
+
+      <div id="class-modal" class="hidden fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+        <div data-class-modal-close class="absolute inset-0 bg-slate-900/50"></div>
+        <div role="dialog" aria-modal="true" class="relative w-full sm:max-w-lg max-h-[92vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl bg-white p-6 text-slate-900 shadow-2xl">
+          <div class="flex items-start justify-between">
+            <h3 id="class-modal-title" class="text-xl font-extrabold">수업 등록</h3>
+            <button type="button" data-class-modal-close class="text-2xl text-slate-400 hover:text-slate-700">✕</button>
+          </div>
+          <form id="class-modal-form" class="mt-5 grid gap-3 sm:grid-cols-2">
+            <input type="hidden" id="modal-class-id" />
+            <label class="grid gap-1 text-xs font-bold text-slate-600">수업 날짜
+              <input id="modal-class-date" type="date" required class="rounded-xl border border-slate-300 px-3 py-2.5 font-normal" /></label>
+            <label class="grid gap-1 text-xs font-bold text-slate-600">정원
+              <input id="modal-class-capacity" type="number" min="1" value="6" required class="rounded-xl border border-slate-300 px-3 py-2.5 font-normal" /></label>
+            <label class="grid gap-1 text-xs font-bold text-slate-600">시작 시간
+              <input id="modal-class-start" type="time" required value="13:00" class="rounded-xl border border-slate-300 px-3 py-2.5 font-normal" /></label>
+            <label class="grid gap-1 text-xs font-bold text-slate-600">종료 시간
+              <input id="modal-class-end" type="time" required value="16:00" class="rounded-xl border border-slate-300 px-3 py-2.5 font-normal" /></label>
+            <label class="grid gap-1 text-xs font-bold text-slate-600">장소
+              <input id="modal-class-place" type="text" value="근력학교 고대점" class="rounded-xl border border-slate-300 px-3 py-2.5 font-normal" /></label>
+            <label class="grid gap-1 text-xs font-bold text-slate-600">상태
+              <select id="modal-class-status" class="rounded-xl border border-slate-300 px-3 py-2.5 font-normal">
+                <option value="open">예약 가능</option>
+                <option value="waitlist">대기 가능</option>
+                <option value="closed">마감</option>
+                <option value="hidden">숨김</option>
+              </select></label>
+            <label class="flex items-center gap-2 pt-5 text-xs font-bold text-slate-600 sm:col-span-2">
+              <input id="modal-class-public" type="checkbox" checked class="h-4 w-4" /> 고객 페이지에 공개</label>
+            <div class="mt-2 flex items-center gap-2 sm:col-span-2">
+              <button type="submit" class="rounded-xl bg-orange-500 px-5 py-3 font-bold text-white">저장</button>
+              <button id="modal-class-delete" type="button" class="hidden rounded-xl bg-red-100 px-5 py-3 font-bold text-red-700">삭제</button>
+            </div>
+          </form>
+          <p id="class-modal-message" class="mt-3 text-sm text-slate-500"></p>
+        </div>
+      </div>
     </section>
   </main>
 
@@ -441,31 +454,27 @@
       }).join('');
     }
 
-    function fillClassForm(c) {
-      document.getElementById('class-edit-id').value = c.class_id;
-      document.getElementById('new-class-date').value = c.class_date || '';
-      document.getElementById('new-class-start').value = String(c.start_time || '').slice(0, 5);
-      document.getElementById('new-class-end').value = String(c.end_time || '').slice(0, 5);
-      document.getElementById('new-class-capacity').value = c.capacity || 6;
-      document.getElementById('new-class-place').value = c.place || '근력학교 고대점';
-      document.getElementById('new-class-status').value = c.status || 'open';
-      document.getElementById('new-class-public').checked = c.is_public !== false;
-      document.getElementById('class-submit-button').textContent = '수업 수정';
-      document.getElementById('class-reset-button').classList.remove('hidden');
-      document.getElementById('class-form-message').textContent = `'${c.class_date}' 일정을 수정 중입니다.`;
+    function openClassModal(mode, classItem) {
+      const modal = document.getElementById('class-modal');
+      const isEdit = mode === 'edit' && classItem;
+      document.getElementById('class-modal-title').textContent = isEdit ? '수업 수정' : '수업 등록';
+      document.getElementById('modal-class-id').value = isEdit ? classItem.class_id : '';
+      document.getElementById('modal-class-date').value = isEdit ? (classItem.class_date || '') : ((classItem && classItem.class_date) || '');
+      document.getElementById('modal-class-start').value = isEdit ? String(classItem.start_time || '').slice(0, 5) : '13:00';
+      document.getElementById('modal-class-end').value = isEdit ? String(classItem.end_time || '').slice(0, 5) : '16:00';
+      document.getElementById('modal-class-capacity').value = isEdit ? (classItem.capacity || 6) : 6;
+      document.getElementById('modal-class-place').value = isEdit ? (classItem.place || '근력학교 고대점') : '근력학교 고대점';
+      document.getElementById('modal-class-status').value = isEdit ? (classItem.status || 'open') : 'open';
+      document.getElementById('modal-class-public').checked = isEdit ? classItem.is_public !== false : true;
+      document.getElementById('modal-class-delete').classList.toggle('hidden', !isEdit);
+      document.getElementById('class-modal-message').textContent = '';
+      modal.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
     }
 
-    function resetClassForm() {
-      document.getElementById('class-create-form').reset();
-      document.getElementById('class-edit-id').value = '';
-      document.getElementById('new-class-start').value = '13:00';
-      document.getElementById('new-class-end').value = '16:00';
-      document.getElementById('new-class-capacity').value = 6;
-      document.getElementById('new-class-place').value = '근력학교 고대점';
-      document.getElementById('new-class-public').checked = true;
-      document.getElementById('class-submit-button').textContent = '수업 등록';
-      document.getElementById('class-reset-button').classList.add('hidden');
-      document.getElementById('class-form-message').textContent = '날짜·시간·정원을 입력하고 등록하면 고객 페이지 달력에 바로 반영됩니다.';
+    function closeClassModal() {
+      document.getElementById('class-modal').classList.add('hidden');
+      document.body.style.overflow = '';
     }
 
     async function loadAdminData() {
@@ -613,32 +622,57 @@
       button.addEventListener('click', () => applyBulkAction(button.dataset.bulkAction));
     });
 
-    document.getElementById('class-create-form').addEventListener('submit', async (event) => {
+    document.querySelectorAll('[data-class-modal-close]').forEach((el) => el.addEventListener('click', closeClassModal));
+    document.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeClassModal(); });
+    document.getElementById('class-create-button').addEventListener('click', () => openClassModal('create', null));
+
+    document.getElementById('class-modal-form').addEventListener('submit', async (event) => {
       event.preventDefault();
+      const message = document.getElementById('class-modal-message');
       const classPayload = {
-        class_date: document.getElementById('new-class-date').value,
-        start_time: document.getElementById('new-class-start').value,
-        end_time: document.getElementById('new-class-end').value,
-        capacity: Number(document.getElementById('new-class-capacity').value),
-        place: document.getElementById('new-class-place').value,
-        status: document.getElementById('new-class-status').value,
-        is_public: document.getElementById('new-class-public').checked
+        class_date: document.getElementById('modal-class-date').value,
+        start_time: document.getElementById('modal-class-start').value,
+        end_time: document.getElementById('modal-class-end').value,
+        capacity: Number(document.getElementById('modal-class-capacity').value),
+        place: document.getElementById('modal-class-place').value,
+        status: document.getElementById('modal-class-status').value,
+        is_public: document.getElementById('modal-class-public').checked,
       };
-      const editId = document.getElementById('class-edit-id').value;
-      const message = document.getElementById('class-form-message');
+      const editId = document.getElementById('modal-class-id').value;
       message.textContent = editId ? '수업을 수정하는 중입니다.' : '수업을 등록하는 중입니다.';
       try {
         if (editId) await callAdminApi('updateClass', { classId: editId, updates: classPayload });
         else await callAdminApi('createClass', { class: classPayload });
-        resetClassForm();
+        closeClassModal();
         await loadAdminData();
-        message.textContent = editId ? '수업 일정을 수정했습니다.' : '수업 일정을 등록했습니다. 고객 페이지 달력에 반영됩니다.';
       } catch (error) {
         message.textContent = `처리 실패: ${error.message}`;
       }
     });
 
-    document.getElementById('class-reset-button').addEventListener('click', resetClassForm);
+    document.getElementById('modal-class-delete').addEventListener('click', async () => {
+      const classId = document.getElementById('modal-class-id').value;
+      if (!classId) return;
+      const message = document.getElementById('class-modal-message');
+      if (!window.confirm('이 수업 일정을 삭제하면 해당 예약 신청도 함께 삭제됩니다. 삭제할까요?')) return;
+      try {
+        try {
+          await callAdminApi('deleteClass', { classId });
+        } catch (deleteError) {
+          // 결제 완료 예약이 있어 서버가 차단한 경우, 한 번 더 확인받고 강제 삭제.
+          if (String(deleteError.message || '').includes('결제 완료 예약')) {
+            if (!window.confirm(`${deleteError.message}\n\n그래도 삭제하시겠습니까? (결제 완료 고객의 신청 기록도 함께 삭제됩니다)`)) return;
+            await callAdminApi('deleteClass', { classId, force: true });
+          } else {
+            throw deleteError;
+          }
+        }
+        closeClassModal();
+        await loadAdminData();
+      } catch (error) {
+        message.textContent = `삭제 실패: ${error.message}`;
+      }
+    });
 
     document.getElementById('class-rows').addEventListener('click', async (event) => {
       const button = event.target.closest('button[data-class-action]');
@@ -646,11 +680,10 @@
       const classId = button.dataset.classId;
       const action = button.dataset.classAction;
       const classItem = adminData.classes.find((c) => c.class_id === classId);
-      const message = document.getElementById('class-form-message');
+      const message = document.getElementById('admin-message');
       try {
         if (action === 'edit') {
-          if (classItem) fillClassForm(classItem);
-          window.scrollTo({ top: 0, behavior: 'smooth' });
+          if (classItem) openClassModal('edit', classItem);
           return;
         }
         if (action === 'toggle-public') {
