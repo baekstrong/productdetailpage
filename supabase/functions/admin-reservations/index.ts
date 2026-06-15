@@ -276,8 +276,18 @@ async function updateClass(classId: string, updates: Record<string, unknown>) {
   return { ok: true, class: classRow };
 }
 
-async function deleteClass(classId: string) {
+async function deleteClass(classId: string, force = false) {
   if (!classId) throw new Error('classId is required');
+  // 결제 완료(또는 확정) 예약이 있는 수업은 실수 삭제로 고객 데이터가 사라지지 않도록 기본 차단한다.
+  // force=true(관리자가 한 번 더 확인)일 때만 허용.
+  if (!force) {
+    const paid = await supabaseFetch(
+      `reservations?class_id=eq.${encodeURIComponent(classId)}&or=(reservation_status.eq.confirmed,payment_status.eq.paid)&select=id`,
+    );
+    if (Array.isArray(paid) && paid.length > 0) {
+      throw new Error(`결제 완료 예약이 ${paid.length}건 있어 삭제가 차단되었습니다. 정말 삭제하려면 다시 한 번 확인해 주세요.`);
+    }
+  }
   // 삭제 전에 연결된 캘린더 이벤트 id를 확보해 캘린더에서도 제거(베스트 에포트).
   const rows = await supabaseFetch(`classes?id=eq.${encodeURIComponent(classId)}&select=google_event_id`);
   const eventId = Array.isArray(rows) && rows[0] ? String(rows[0].google_event_id || '') : '';
@@ -498,7 +508,7 @@ serve(async (req) => {
     if (action === 'list') return jsonResponse(await listAdminData());
     if (action === 'createClass') return jsonResponse(await createClass(body.class || {}));
     if (action === 'updateClass') return jsonResponse(await updateClass(String(body.classId || ''), body.updates || {}));
-    if (action === 'deleteClass') return jsonResponse(await deleteClass(String(body.classId || '')));
+    if (action === 'deleteClass') return jsonResponse(await deleteClass(String(body.classId || ''), Boolean(body.force)));
     if (action === 'backfillCalendar') return jsonResponse(await backfillCalendar());
     if (action === 'bulkApprove') return jsonResponse(await bulkApprove(String(body.classId || '')));
     if (action === 'updateReservation') {
