@@ -3,9 +3,9 @@
 > 이 문서는 **작업 종료 시마다 갱신**한다. 다음 세션이 이 문서만 읽고 바로 이어서 작업할 수 있도록 유지한다.
 > 상세 아키텍처는 `CLAUDE.md`, 운영/콘텐츠 정책은 `AGENTS.md` 참고.
 
-> ⏭️ **진행 중(다음 작업) — 관리자 월간 캘린더 UI**: 설계 `docs/superpowers/specs/2026-06-15-admin-calendar-ui-design.md`, **구현 계획 `docs/superpowers/plans/2026-06-15-admin-calendar-ui.md`(커밋 6b15b21)**. 승인 완료, **서브에이전트-드리븐으로 구현 예정**(아직 코드 미착수). 요지: admin.html에 월간 캘린더 추가(칸=시간·상태·신청현황, 빈날짜→등록 모달/수업→수정·삭제 모달), 등록/수정 공용 모달(인라인 폼 대체), 목록 표 행 클릭→수업 선택+하이라이트, "일정 선택" 드롭다운 제거(`selectedClassId`→`currentClassId` 변수화). 백엔드·DB 변경 없음. Task 1→6 순서대로(의존성 있음). 다음 세션은 이 계획 파일을 읽고 `superpowers:subagent-driven-development`로 실행할 것.
+> ✅ **관리자 월간 캘린더 UI — 구현 완료(2026-06-15)**: 설계 `docs/superpowers/specs/2026-06-15-admin-calendar-ui-design.md`, 계획 `docs/superpowers/plans/2026-06-15-admin-calendar-ui.md`. 서브에이전트-드리븐으로 Task 1~6 구현, 스펙·코드 품질 리뷰 통과, 계약 테스트 16개 PASS. `admin.html`만 변경(백엔드·DB 무변경). 요지: "일정 선택" 드롭다운 제거→선택 상태를 모듈 변수 `currentClassId`로 관리(`selectedClassId()`→`currentClassId`), 등록/수정 공용 모달(`openClassModal(mode, classItem)`, 인라인 폼 대체), 월간 캘린더(`renderAdminCalendar`/`admin-cal-body` — 칸에 시간·상태·신청현황 배지, 빈날짜 클릭→등록 모달/수업 배지 클릭→수정·삭제 모달, ‹/오늘/›/＋새수업), 목록 표 행 클릭→수업 선택+하이라이트(`setSelectedClass`/`data-select-class`). **남은 것: 라이브 배포는 GitHub Pages 자동(push 시) — 백관장 실제 화면 확인.**
 
-**마지막 갱신:** 2026-06-15 (**구글 캘린더 동기화 — 배포·검증 완료**: 수업 생성/수정/삭제 시 `admin-reservations`가 구글 Calendar v3 이벤트를 베스트 에포트로 생성·갱신·삭제(`calendar.ts`, 서비스계정 JWT(RS256)→OAuth→REST Deno 직접 호출). `classes.google_event_id` 컬럼·시크릿 3개(`GOOGLE_CLIENT_EMAIL`/`GOOGLE_PRIVATE_KEY`/`GOOGLE_CALENDAR_ID`, 근력학교 앱과 동일 서비스계정·캘린더 재사용) 라이브 적용 완료. 이벤트 제목 `[케틀벨 원데이] M월 D일 (요일)`, **파란색 colorId 9**(근력학교 일정과 구분). 기존 수업 일괄 등록 버튼(`backfillCalendar`). **결제완료 예약 있는 수업 삭제 방어**(force 재확인 필요). 실제 캘린더 생성/색상 검증 완료(아이폰 기본 캘린더는 캘린더색으로 덮어 보일 수 있음 — 구글 캘린더 앱/웹에선 파랑 정상). 계약 테스트 15개 통과.) (이전: 1차 + 운영 피드백 다수 반영·배포 완료 — 예약 문자 버그 수정(`send-many/detail`+ISO8601), 취소 시 자리 복구(취소·불참 집계 제외), 접수 문자 2분기(정원 내/만석), 본인 예약 조회 페이지(`lookup.html`+`lookup-reservation`), 어드민 기본 시간 13:00~16:00, 현황판 실제 이름 표시, 상단 새로고침 버튼.)
+**마지막 갱신:** 2026-06-15 (**관리자 월간 캘린더 UI 구현 완료** — 위 참조. 이전 같은 날: **구글 캘린더 동기화 — 배포·검증 완료**: 수업 생성/수정/삭제 시 `admin-reservations`가 구글 Calendar v3 이벤트를 베스트 에포트로 생성·갱신·삭제(`calendar.ts`, 서비스계정 JWT(RS256)→OAuth→REST Deno 직접 호출). `classes.google_event_id` 컬럼·시크릿 3개(`GOOGLE_CLIENT_EMAIL`/`GOOGLE_PRIVATE_KEY`/`GOOGLE_CALENDAR_ID`, 근력학교 앱과 동일 서비스계정·캘린더 재사용) 라이브 적용 완료. 이벤트 제목 `[케틀벨 원데이] M월 D일 (요일)`, **파란색 colorId 9**(근력학교 일정과 구분). 기존 수업 일괄 등록 버튼(`backfillCalendar`). **결제완료 예약 있는 수업 삭제 방어**(force 재확인 필요). 실제 캘린더 생성/색상 검증 완료(아이폰 기본 캘린더는 캘린더색으로 덮어 보일 수 있음 — 구글 캘린더 앱/웹에선 파랑 정상).) (이전: 1차 + 운영 피드백 다수 반영·배포 완료 — 예약 문자 버그 수정(`send-many/detail`+ISO8601), 취소 시 자리 복구(취소·불참 집계 제외), 접수 문자 2분기(정원 내/만석), 본인 예약 조회 페이지(`lookup.html`+`lookup-reservation`), 어드민 기본 시간 13:00~16:00, 현황판 실제 이름 표시, 상단 새로고침 버튼.)
 
 > **공개 직전 체크리스트(미완 추정 — 확인 필요)**: ① 라이브 뷰 SQL 적용(`class_reservation_summary` 취소 제외 — 미적용 시 고객 달력 인원 부정확) ② 테스트 데이터 정리(`delete from message_logs; delete from reservations;`) ③ 노출된 Supabase PAT 폐기 ④ 공개 전 백관장 승인(AGENTS.md 14항 — 운영자 본인 최종 검토).
 
@@ -19,6 +19,12 @@
 
 ## 2. 이번까지 완료한 기능
 
+- **관리자 월간 캘린더 UI — 구현 완료(2026-06-15)** (`admin.html` + `tests/test_static_pages.py`, 백엔드·DB 무변경)
+  - "일정 선택" 드롭다운(`class-filter`) 제거 → 선택 상태를 모듈 변수 `currentClassId`로 단일화(`selectedClassId()`가 이를 반환). 기본 선택은 가장 가까운 다음 일정.
+  - 등록/수정 **공용 모달**(`class-modal`, `openClassModal('create'|'edit', classItem)`): 인라인 등록 폼 대체. 저장은 `createClass`/`updateClass`, 삭제는 결제완료 예약 방어(force 재확인) 그대로. 배경/X/ESC 닫기.
+  - **월간 캘린더**(`admin-cal-body`/`renderAdminCalendar`): 날짜 칸에 수업 배지(시간 `13:00~16:00`·상태 라벨·신청현황 `확정 N·가능 M·대기 K`, 상태별 색, 비공개는 흐리게). 빈 날짜 클릭→등록 모달(날짜 프리필), 수업 배지 클릭→수정/삭제 모달. ‹/오늘/›/＋새수업 버튼으로 월 이동·등록.
+  - **목록 표 행 선택**: 행 클릭(`data-select-class`)→`setSelectedClass(id)`로 아래 요약·예약표·문자현황 갱신 + 선택 행 하이라이트(`bg-blue-50 ring-2 ring-blue-300`). 관리 버튼(수정/공개토글/삭제)은 기존 동작 유지(버튼 우선 처리로 행 선택과 분리).
+  - 서브에이전트-드리븐 구현(Task 1~6) + 스펙/코드 품질 리뷰 통과. 계약 테스트 `test_admin_calendar_ui` 추가, 제거된 `data-class-form` 검사 삭제 — 16개 PASS.
 - **구글 캘린더 동기화 — 구현·배포·검증 완료(2026-06-15)** (`admin-reservations/calendar.ts` 신규 + `index.ts` + `admin.html` + `schema.sql`)
   - 수업 등록→이벤트 생성, 수정→갱신, 삭제→제거. 베스트 에포트(시크릿 미설정/캘린더 실패해도 수업 CRUD 정상).
   - Deno에서 서비스계정 JWT(RS256)→OAuth(`oauth2.googleapis.com/token`)→Calendar v3 REST 직접 호출. 근력학교 앱과 **같은 서비스계정·같은 캘린더** 재사용(시크릿 3개 라이브 설정 완료). 토큰 메모리 캐시. private key는 `\n` 복원 후 DER 디코드.
@@ -99,7 +105,7 @@
 - **Edge Function `admin-reservations`**: 최신 코드로 배포됨. **반드시 `--no-verify-jwt`로 배포**(게이트웨이 JWT 검증 끄기 — publishable 키는 JWT 아님, 자체 비밀번호 인증). `supabase/config.toml`에 세 함수 `verify_jwt=false` 명시됨.
 - **DB 뷰**: `is_public` 필터 버전이 라이브에 적용 완료(SQL Editor에서 수동 실행함).
 - **DB 스키마**: `supabase/schema.sql` 기준. 테이블 변경 없음(현재 기능엔 스키마 변경 불필요).
-- **테스트**: `python3 -m unittest tests.test_static_pages` — 13개 통과(1차 구조 개선 계약 테스트 추가로 12→13).
+- **테스트**: `python3 -m unittest tests.test_static_pages` — 16개 통과(관리자 캘린더 UI 계약 테스트 추가).
 
 ### 환경 메모 (다음 세션이 배포할 때)
 - 이 PC에 **Supabase CLI는 brew 설치 실패**(CLT/macOS 26 이슈). 대신 바이너리 직접 설치됨:
@@ -110,6 +116,7 @@
 
 ## 4. 다음에 할 일 (우선순위)
 
+0. **✅ 관리자 월간 캘린더 UI — 구현·테스트 완료(2026-06-15)**. push 시 GitHub Pages 자동 배포. 백관장이 관리자 화면에서 캘린더 등록/수정/삭제·행 선택 동작 실제 확인만 남음.
 1. **✅ 1차 구조 개선 — 코드·배포·DB 적용·검증 전부 완료(2026-06-13)**
    - 함수 3개 배포(submit-reservation 신규 + solapi/admin 재배포), 스모크 통과.
    - 라이브 DB: `anon can create reservation` 정책 제거(anon 직접 insert가 RLS 42501로 차단됨을 실제 확인) + `reservations_active_unique` 인덱스 생성 완료. 인덱스 생성 전 중복 활성 신청 1건은 최초만 남기고 취소 처리.
