@@ -95,6 +95,8 @@ function eventBody(c: ClassEvent): Record<string, unknown> {
     summary: formatEventTitle(c.class_date),
     location: c.place || '근력학교 고대점',
     description: `케틀벨 원데이 수업 예약/안내 페이지: ${PRODUCT_URL}`,
+    // 근력학교 일정과 구분되도록 파란색(Blueberry)으로 표시.
+    colorId: '9',
     start: { dateTime: `${c.class_date}T${start}:00`, timeZone: 'Asia/Seoul' },
     end: { dateTime: `${endDate}T${end}:00`, timeZone: 'Asia/Seoul' },
   };
