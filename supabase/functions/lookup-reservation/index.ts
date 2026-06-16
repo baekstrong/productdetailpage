@@ -58,14 +58,26 @@ function formatSchedule(dateStr: string, startTime: string, endTime: string): st
   return `${yy}년 ${month}월 ${day}일 ${timeText}`;
 }
 
+// 고객용 상태키(라벨/안내 문구의 기준). 대기 순번 등 내부 정보는 노출하지 않음.
+function customerStatusKey(r: Record<string, unknown>): string {
+  if (r.reservation_status === 'cancelled') return 'cancelled';
+  if (r.reservation_status === 'no_show') return 'no_show';
+  if (r.reservation_status === 'confirmed' || r.payment_status === 'paid') return 'confirmed';
+  if (r.reservation_status === 'payment_target' || r.payment_status === 'sent') return 'payment_target';
+  if (r.reservation_status === 'waitlisted') return 'waitlisted';
+  return 'applied';
+}
+
 // 고객용 상태 라벨(대기 순번 등 내부 정보는 노출하지 않음).
-function customerStatusLabel(r: Record<string, unknown>): string {
-  if (r.reservation_status === 'cancelled') return '취소됨';
-  if (r.reservation_status === 'no_show') return '불참 처리';
-  if (r.reservation_status === 'confirmed' || r.payment_status === 'paid') return '예약 확정 (결제 완료)';
-  if (r.reservation_status === 'payment_target' || r.payment_status === 'sent') return '결제 안내 대상 — 안내 문자를 확인해 주세요';
-  if (r.reservation_status === 'waitlisted') return '대기 중 (여석이 생기면 안내드립니다)';
-  return '신청 접수됨 (순서가 되면 안내드립니다)';
+function customerStatusLabel(key: string): string {
+  switch (key) {
+    case 'cancelled': return '취소됨';
+    case 'no_show': return '불참 처리';
+    case 'confirmed': return '예약 확정 (결제 완료)';
+    case 'payment_target': return '결제 안내 대상 — 안내 문자를 확인해 주세요';
+    case 'waitlisted': return '대기 중 (여석이 생기면 안내드립니다)';
+    default: return '신청 접수됨 (순서가 되면 안내드립니다)';
+  }
 }
 
 serve(async (req) => {
@@ -83,7 +95,7 @@ serve(async (req) => {
     // 이름+전화가 모두 일치하는 본인 신청만 조회(공개 수업만, classes 임베드).
     const rows = await supabaseFetch(
       `reservations?applicant_name=eq.${encodeURIComponent(applicantName)}&phone=eq.${encodeURIComponent(phone)}` +
-      `&select=reservation_status,payment_status,created_at,class:classes(class_date,start_time,end_time,place,is_public,status)` +
+      `&select=id,reservation_status,payment_status,created_at,class:classes(class_date,start_time,end_time,place,is_public,status)` +
       `&order=created_at.desc`
     );
 
@@ -91,10 +103,16 @@ serve(async (req) => {
       .filter((r: Record<string, unknown>) => r.class && (r.class as Record<string, unknown>).is_public === true)
       .map((r: Record<string, unknown>) => {
         const c = r.class as Record<string, string>;
+        const key = customerStatusKey(r);
         return {
+          reservation_id: r.id,
           class_label: formatSchedule(c.class_date, c.start_time, c.end_time),
           place: c.place || '근력학교 고대점',
-          status_label: customerStatusLabel(r),
+          status_key: key,
+          status_label: customerStatusLabel(key),
+          created_at: r.created_at,
+          // 결제 완료/취소/불참 전까지는 본인이 직접 예약을 취소할 수 있다.
+          cancellable: key === 'applied' || key === 'waitlisted' || key === 'payment_target',
         };
       });
 

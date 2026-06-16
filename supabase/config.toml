@@ -16,3 +16,6 @@ verify_jwt = false
 
 [functions.lookup-reservation]
 verify_jwt = false
+
+[functions.cancel-reservation]
+verify_jwt = false
