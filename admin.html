@@ -281,6 +281,28 @@
       return `<span class="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-700">대기 ${rank - remaining + 1}</span>`;
     }
 
+    // 결제 안내(또는 여석 안내) 문자가 발송된 가장 최근 시각(ms). 없으면 null.
+    function paymentSentAt(reservationId) {
+      const times = (adminData.messageLogs || [])
+        .filter((l) => l.reservation_id === reservationId && (l.message_type === 'payment 안내' || l.message_type === 'seat_opened') && l.status === 'sent' && l.sent_at)
+        .map((l) => new Date(l.sent_at).getTime())
+        .filter((t) => !isNaN(t));
+      return times.length ? Math.max.apply(null, times) : null;
+    }
+
+    // 결제 안내 문자 발송 후 24시간이 지났는데 아직 미결제면 경과 배지(관리자 판단용 — 자동 마감 아님).
+    function paymentOverdueHtml(r) {
+      const stillWaiting = (r.reservation_status === 'payment_target' || r.payment_status === 'sent')
+        && r.payment_status !== 'paid'
+        && r.reservation_status !== 'confirmed' && r.reservation_status !== 'cancelled' && r.reservation_status !== 'no_show';
+      if (!stillWaiting) return '';
+      const sentAt = paymentSentAt(r.id);
+      if (!sentAt) return '';
+      const hours = Math.floor((Date.now() - sentAt) / 3600000);
+      if (hours < 24) return '';
+      return `<span class="ml-1 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700" title="결제 안내 문자 발송 후 ${hours}시간 경과 — 미결제. 필요하면 미결제 마감 처리하세요.">${hours}h 경과</span>`;
+    }
+
     function renderReservations(rows, classItem) {
       const body = document.getElementById('reservation-rows');
       document.getElementById('reservation-count').textContent = `${rows.length}명`;
@@ -316,7 +338,7 @@
           <td class="p-3">${escapeHtml(r.kettlebell_experience || '')}</td>
           <td class="p-3" title="${escapeHtml(r.reason || '')}">${escapeHtml(r.reason || '')}</td>
           <td class="p-3">${escapeHtml(statusLabels[r.reservation_status] || r.reservation_status)}</td>
-          <td class="p-3">${escapeHtml(statusLabels[r.payment_status] || r.payment_status)}</td>
+          <td class="p-3">${escapeHtml(statusLabels[r.payment_status] || r.payment_status)}${paymentOverdueHtml(r)}</td>
           <td class="p-3">${escapeHtml(r.waitlist_order || '')}</td>
           <td class="p-3">${escapeHtml(formatDateTime(r.created_at))}</td>
           <td class="p-3"><button type="button" data-memo-edit="${escapeHtml(r.id)}" class="text-left underline decoration-dotted">${escapeHtml(r.admin_memo || '메모 추가')}</button></td>
