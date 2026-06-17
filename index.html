@@ -146,7 +146,80 @@
 
 
     <!-- ============================================== -->
-    <!-- 2. 예약 가능 일정                                -->
+    <!-- 2. 예약 안내                                     -->
+    <!-- ============================================== -->
+    <section id="reservation-guide" class="bg-cream-50">
+      <div class="max-w-5xl mx-auto px-5 py-20 sm:py-24">
+        <p class="text-sm font-semibold text-brand-600 tracking-wide">RESERVATION GUIDE</p>
+        <h2 class="mt-2 text-2xl sm:text-4xl font-extrabold tracking-tight text-ink-900">
+          예약 안내
+        </h2>
+        <p class="mt-4 text-ink-500 max-w-2xl">
+          수업을 예약해주시면, 아래와 같이 진행됩니다.
+        </p>
+
+        <ol class="mt-10">
+          <li class="relative flex gap-5 pb-8">
+            <div class="absolute left-5 top-12 bottom-0 w-px bg-ink-200" aria-hidden="true"></div>
+            <div class="relative z-10 flex h-10 w-10 flex-none items-center justify-center rounded-full bg-brand-500 text-white font-bold shadow-soft">1</div>
+            <div class="pt-1.5">
+              <p class="font-bold text-ink-900">날짜 선택</p>
+              <p class="mt-1 text-sm text-ink-500 leading-relaxed">예약 가능 일정에서 원하는 날짜를 선택합니다.</p>
+            </div>
+          </li>
+          <li class="relative flex gap-5 pb-8">
+            <div class="absolute left-5 top-12 bottom-0 w-px bg-ink-200" aria-hidden="true"></div>
+            <div class="relative z-10 flex h-10 w-10 flex-none items-center justify-center rounded-full bg-brand-500 text-white font-bold shadow-soft">2</div>
+            <div class="pt-1.5">
+              <p class="font-bold text-ink-900">예약 신청</p>
+              <p class="mt-1 text-sm text-ink-500 leading-relaxed">이름, 연락처, 케틀벨 경험 여부를 남기면 해당 날짜 명단에 등록됩니다.</p>
+            </div>
+          </li>
+          <li class="relative flex gap-5 pb-8">
+            <div class="absolute left-5 top-12 bottom-0 w-px bg-ink-200" aria-hidden="true"></div>
+            <div class="relative z-10 flex h-10 w-10 flex-none items-center justify-center rounded-full bg-brand-500 text-white font-bold shadow-soft">3</div>
+            <div class="pt-1.5">
+              <p class="font-bold text-ink-900">결제 안내</p>
+              <p class="mt-1 text-sm text-ink-500 leading-relaxed">예약이 확정되면, 문자로 결제 안내를 보내드립니다.<br>결제까지 완료되어야 수업 자리가 확정됩니다.</p>
+            </div>
+          </li>
+          <li class="relative flex gap-5 pb-8">
+            <div class="absolute left-5 top-12 bottom-0 w-px bg-ink-200" aria-hidden="true"></div>
+            <div class="relative z-10 flex h-10 w-10 flex-none items-center justify-center rounded-full bg-brand-500 text-white font-bold shadow-soft">4</div>
+            <div class="pt-1.5">
+              <p class="font-bold text-ink-900">수업 전 안내</p>
+              <p class="mt-1 text-sm text-ink-500 leading-relaxed">결제 완료 후 수업 일정, 장소, 준비물을 문자로 안내드립니다.</p>
+            </div>
+          </li>
+          <li class="relative flex gap-5 pb-8">
+            <div class="absolute left-5 top-12 bottom-0 w-px bg-ink-200" aria-hidden="true"></div>
+            <div class="relative z-10 flex h-10 w-10 flex-none items-center justify-center rounded-full bg-brand-500 text-white font-bold shadow-soft">5</div>
+            <div class="pt-1.5">
+              <p class="font-bold text-ink-900">수업 후 복습 자료</p>
+              <p class="mt-1 text-sm text-ink-500 leading-relaxed">수업 후 복습용 교재 링크를 문자로 보내드립니다.</p>
+            </div>
+          </li>
+          <li class="relative flex gap-5">
+            <div class="relative z-10 flex h-10 w-10 flex-none items-center justify-center rounded-full bg-brand-500 text-white font-bold shadow-soft">6</div>
+            <div class="pt-1.5">
+              <p class="font-bold text-ink-900">복습 영상</p>
+              <p class="mt-1 text-sm text-ink-500 leading-relaxed">복습 영상 링크는 수업 후 별도로 안내드립니다.</p>
+            </div>
+          </li>
+        </ol>
+
+        <div class="mt-8 rounded-2xl bg-white ring-1 ring-ink-200/70 p-6">
+          <p class="font-bold text-ink-900">대기로 신청된 경우</p>
+          <p class="mt-2 text-sm text-ink-500 leading-relaxed">
+            정원이 모두 차면 대기로 신청됩니다. 앞 순서에서 자리가 나면 신청한 순서대로 결제 안내를 보내드립니다.<br>
+            대기 중에는 미리 결제하실 것이 없고, 자리가 준비되어 예약이 확정될 때만 문자로 안내드립니다.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================== -->
+    <!-- 3. 예약 가능 일정                                -->
     <!-- ============================================== -->
     <section id="schedule" class="bg-white border-y border-ink-200/60">
       <div class="max-w-5xl mx-auto px-5 py-20 sm:py-24">
@@ -180,29 +253,6 @@
           <div id="calendar-body" class="calendar-grid mt-2"></div>
           <p id="calendar-empty" class="mt-6 text-sm text-ink-500 hidden">현재 열려 있는 예약 가능 일정이 없습니다. 새로운 일정이 곧 공개됩니다.</p>
         </div>
-      </div>
-    </section>
-
-    <!-- ============================================== -->
-    <!-- 3. 예약 안내                                     -->
-    <!-- ============================================== -->
-    <section id="reservation-guide" class="bg-cream-50">
-      <div class="max-w-5xl mx-auto px-5 py-20 sm:py-24">
-        <p class="text-sm font-semibold text-brand-600 tracking-wide">RESERVATION GUIDE</p>
-        <h2 class="mt-2 text-2xl sm:text-4xl font-extrabold tracking-tight text-ink-900">
-          예약 안내
-        </h2>
-        <p class="mt-4 text-ink-500 max-w-2xl">
-          수업을 예약해주시면, 아래와 같이 진행됩니다.
-        </p>
-        <ol class="mt-10 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <li class="p-6 rounded-2xl bg-white ring-1 ring-ink-200/70"><p class="font-bold text-ink-900">1. 날짜 선택</p><p class="mt-2 text-sm text-ink-500 leading-relaxed">예약 가능 일정에서 원하는 날짜를 선택합니다.</p></li>
-          <li class="p-6 rounded-2xl bg-white ring-1 ring-ink-200/70"><p class="font-bold text-ink-900">2. 예약 신청</p><p class="mt-2 text-sm text-ink-500 leading-relaxed">이름, 연락처, 케틀벨 경험 여부를 남기면 해당 날짜 대기 명단에 등록됩니다.</p></li>
-          <li class="p-6 rounded-2xl bg-white ring-1 ring-ink-200/70"><p class="font-bold text-ink-900">3. 결제 안내</p><p class="mt-2 text-sm text-ink-500 leading-relaxed">순서가 되면 문자로 결제 안내를 보내드립니다.<br>결제까지 완료되어야 수업 자리가 확정됩니다.</p></li>
-          <li class="p-6 rounded-2xl bg-white ring-1 ring-ink-200/70"><p class="font-bold text-ink-900">4. 수업 전 안내</p><p class="mt-2 text-sm text-ink-500 leading-relaxed">결제 완료 후 수업 일정, 장소, 준비물을 문자로 안내드립니다.</p></li>
-          <li class="p-6 rounded-2xl bg-white ring-1 ring-ink-200/70"><p class="font-bold text-ink-900">5. 수업 후 복습 자료</p><p class="mt-2 text-sm text-ink-500 leading-relaxed">수업 후 복습용 교재 링크를 문자로 보내드립니다.</p></li>
-          <li class="p-6 rounded-2xl bg-white ring-1 ring-ink-200/70"><p class="font-bold text-ink-900">6. 복습 영상</p><p class="mt-2 text-sm text-ink-500 leading-relaxed">복습 영상 링크는 수업 후 별도로 안내드립니다.</p></li>
-        </ol>
       </div>
     </section>
 
