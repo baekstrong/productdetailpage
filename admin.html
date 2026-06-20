@@ -657,7 +657,7 @@
       if (!classId) { message.textContent = '먼저 수업을 선택하세요.'; return; }
       const currentClass = adminData.classes.find((item) => item.class_id === classId);
       const remaining = currentClass ? Math.max(Number(currentClass.capacity || 0) - Number(currentClass.confirmed_count || 0) - Number(currentClass.payment_ready_count || 0), 0) : 0;
-      if (!window.confirm(`이 수업의 신청자를 선착순으로 ${remaining}명까지 '결제 안내 대상'으로 지정하고, 초과분은 자동 대기 처리합니다. 진행할까요?`)) return;
+      if (!window.confirm(`선착순으로 들어온 ${remaining}명을 '결제 안내 대상'으로 일괄 승인합니다. (정원을 못 채운 나머지는 자동 대기) 진행할까요?`)) return;
       message.textContent = '선착순 일괄 승인 처리 중입니다.';
       try {
         const result = await callAdminApi('bulkApprove', { classId });
