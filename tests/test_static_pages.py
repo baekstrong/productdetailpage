@@ -64,6 +64,10 @@ class StaticPageTests(unittest.TestCase):
         self.assertNotIn("운영 예시", html)
         self.assertNotIn("관리자 화면", html)
         self.assertNotIn("백관장", html)
+        # 예약 오픈 예정(미리보기) 분기
+        self.assertIn("data-preview-open", html)
+        self.assertIn("is_open", html)
+        self.assertIn("예약 오픈", html)
 
     def test_class_info_shows_next_one_day_class_schedule(self):
         html = read_page("index.html")

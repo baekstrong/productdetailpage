@@ -696,7 +696,9 @@
           waitlist_count: Number(item.waitlist_count || 0),
           is_public: item.is_public,
           status: item.status,
-          place: item.place
+          place: item.place,
+          is_open: item.is_open === undefined ? true : item.is_open !== false,
+          open_at: item.open_at || null
         };
       }
 
@@ -717,6 +719,23 @@
         return !isNaN(start.getTime()) && start.getTime() < Date.now();
       }
 
+      // open_at(ISO) → KST 벽시계 Date
+      function openAtKst(iso) {
+        if (!iso) return null;
+        var d = new Date(iso);
+        if (isNaN(d.getTime())) return null;
+        return new Date(d.getTime() + 9 * 3600 * 1000);
+      }
+      function openDateLabel(iso) {
+        var k = openAtKst(iso);
+        return k ? (k.getUTCMonth() + 1) + '/' + k.getUTCDate() + ' 오픈' : '오픈 예정';
+      }
+      function openAnnounce(iso) {
+        var k = openAtKst(iso);
+        if (!k) return '아직 예약 오픈 전입니다.';
+        return (k.getUTCMonth() + 1) + '월 ' + k.getUTCDate() + '일 ' + k.getUTCHours() + '시에 예약 오픈됩니다.';
+      }
+
       function timeRange(item) {
         // 모바일(좁은 칸)에서는 시작/종료를 두 줄로, sm 이상에서는 한 줄로 표시.
         return item.end_time ? item.start_time + '<br class="sm:hidden">~' + item.end_time : item.start_time;
@@ -729,6 +748,14 @@
             + '<span class="block text-[9px] sm:text-[11px] font-bold leading-tight tracking-tight text-ink-400">' + timeRange(item) + '</span>'
             + '<span class="block text-[10px] font-bold text-ink-500">종료</span>'
             + '</div>';
+        }
+        // 오픈 전(예약 불가) — 예약 모달 대신 안내. 인원 숨김.
+        if (item.is_open === false) {
+          return '<button type="button" data-preview-open="' + escapeHtml(item.open_at || '') + '"'
+            + ' class="block w-full text-left rounded-lg bg-ink-50 border border-dashed border-ink-300 px-1 py-1 transition cursor-pointer overflow-hidden">'
+            + '<span class="block text-[9px] sm:text-[11px] font-bold leading-tight tracking-tight text-ink-500">' + timeRange(item) + '</span>'
+            + '<span class="block text-[10px] leading-tight text-ink-400 whitespace-nowrap">' + openDateLabel(item.open_at) + '</span>'
+            + '</button>';
         }
         var available = availableOf(item);
         var reservable = available > 0 && item.status !== 'closed';
@@ -828,7 +855,7 @@
         var availabilityEl = document.getElementById('next-class-availability');
         var placeEl = document.getElementById('next-class-place');
         if (!scheduleEl) return;
-        var upcoming = (window.__publicClasses || []).filter(function (c) { return !isPastClass(c); })
+        var upcoming = (window.__publicClasses || []).filter(function (c) { return !isPastClass(c) && c.is_open !== false; })
           .sort(function (a, b) { return (a.date + a.start_time) < (b.date + b.start_time) ? -1 : 1; });
         var next = upcoming[0];
         if (!next) {
@@ -919,6 +946,11 @@
       var calendarBody = document.getElementById('calendar-body');
       if (calendarBody) {
         calendarBody.addEventListener('click', function (event) {
+          var preview = event.target.closest('[data-preview-open]');
+          if (preview) {
+            window.alert(openAnnounce(preview.getAttribute('data-preview-open')));
+            return;
+          }
           var link = event.target.closest('[data-reservation-date]');
           if (!link) return;
           var date = link.getAttribute('data-reservation-date');
