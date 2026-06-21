@@ -169,8 +169,12 @@
                 <option value="closed">마감</option>
                 <option value="hidden">숨김</option>
               </select></label>
-            <label class="flex items-center gap-2 pt-5 text-xs font-bold text-slate-600 sm:col-span-2">
-              <input id="modal-class-public" type="checkbox" checked class="h-4 w-4" /> 고객 페이지에 공개</label>
+            <label class="grid gap-1 text-xs font-bold text-slate-600 sm:col-span-2">예약 오픈 일시 (비우면 즉시 오픈)
+              <input id="modal-class-open-at" type="datetime-local" class="rounded-xl border border-slate-300 px-3 py-2.5 font-normal" /></label>
+            <label class="flex items-center gap-2 text-xs font-bold text-slate-600 sm:col-span-2">
+              <input id="modal-class-preview" type="checkbox" class="h-4 w-4" /> 오픈 전에도 달력에 '예약 오픈 예정'으로 표시</label>
+            <label class="flex items-center gap-2 pt-2 text-xs font-bold text-slate-600 sm:col-span-2">
+              <input id="modal-class-public" type="checkbox" checked class="h-4 w-4" /> 고객 페이지에 공개(끄면 오픈 일시와 무관하게 무조건 숨김)</label>
             <div class="mt-2 flex items-center gap-2 sm:col-span-2">
               <button type="submit" class="rounded-xl bg-orange-500 px-5 py-3 font-bold text-white">저장</button>
               <button id="modal-class-delete" type="button" class="hidden rounded-xl bg-red-100 px-5 py-3 font-bold text-red-700">삭제</button>
@@ -484,9 +488,11 @@
         : 'bg-blue-100 text-blue-700';
       const dim = c.is_public === false ? ' opacity-50' : '';
       const counts = `확정 ${c.confirmed_count || 0}·가능 ${c.available_count || 0}·대기 ${c.waitlist_count || 0}`;
+      const preopen = c.is_open === false ? '<span class="block text-[9px] font-bold text-indigo-600">오픈예정</span>' : '';
       return `<button type="button" data-cal-class="${escapeHtml(c.class_id)}" class="block w-full rounded-md ${tone}${dim} px-1 py-0.5 text-left text-[10px] leading-tight">`
         + `<span class="block font-bold">${escapeHtml(time)}</span>`
         + `<span class="block">${escapeHtml(statusLabels[c.status] || c.status)}</span>`
+        + preopen
         + `<span class="block text-[9px]">${escapeHtml(counts)}</span></button>`;
     }
     function renderAdminCalendar() {
@@ -545,6 +551,19 @@
       }).join('');
     }
 
+    // timestamptz(ISO) → datetime-local 입력값(KST 벽시계 YYYY-MM-DDTHH:mm)
+    function openAtToInput(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return '';
+      return new Date(d.getTime() + 9 * 3600 * 1000).toISOString().slice(0, 16);
+    }
+    // datetime-local 입력값(KST로 해석) → ISO 문자열(+09:00). 비면 null.
+    function inputToOpenAtIso(localValue) {
+      if (!localValue) return null;
+      return localValue.slice(0, 16) + ':00+09:00';
+    }
+
     function openClassModal(mode, classItem) {
       const modal = document.getElementById('class-modal');
       const isEdit = mode === 'edit' && classItem;
@@ -557,6 +576,8 @@
       document.getElementById('modal-class-place').value = isEdit ? (classItem.place || '근력학교 고대점') : '근력학교 고대점';
       document.getElementById('modal-class-status').value = isEdit ? (classItem.status || 'open') : 'open';
       document.getElementById('modal-class-public').checked = isEdit ? classItem.is_public !== false : true;
+      document.getElementById('modal-class-open-at').value = isEdit ? openAtToInput(classItem.open_at) : '';
+      document.getElementById('modal-class-preview').checked = isEdit ? classItem.preview_before_open === true : false;
       document.getElementById('modal-class-delete').classList.toggle('hidden', !isEdit);
       document.getElementById('class-modal-message').textContent = '';
       modal.classList.remove('hidden');
@@ -728,6 +749,8 @@
         place: document.getElementById('modal-class-place').value,
         status: document.getElementById('modal-class-status').value,
         is_public: document.getElementById('modal-class-public').checked,
+        open_at: inputToOpenAtIso(document.getElementById('modal-class-open-at').value),
+        preview_before_open: document.getElementById('modal-class-preview').checked,
       };
       const editId = document.getElementById('modal-class-id').value;
       message.textContent = editId ? '수업을 수정하는 중입니다.' : '수업을 등록하는 중입니다.';

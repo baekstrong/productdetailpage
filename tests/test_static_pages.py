@@ -183,6 +183,12 @@ class StaticPageTests(unittest.TestCase):
         # 드롭다운/인라인 폼 제거
         self.assertNotIn('id="class-filter"', html)
         self.assertNotIn('id="class-create-form"', html)
+        # 예약 오픈 일시 입력 + 시각 변환 헬퍼
+        self.assertIn("modal-class-open-at", html)
+        self.assertIn("modal-class-preview", html)
+        self.assertIn('type="datetime-local"', html)
+        self.assertIn("inputToOpenAtIso", html)
+        self.assertIn("openAtToInput", html)
 
     def test_admin_reservations_edge_function_protects_private_reads(self):
         edge = read_page("supabase/functions/admin-reservations/index.ts")
