@@ -12,6 +12,8 @@ create table if not exists public.classes (
   capacity integer not null default 6 check (capacity > 0),
   is_public boolean not null default true,
   status text not null default 'open' check (status in ('open', 'waitlist', 'closed', 'hidden')),
+  open_at timestamptz,
+  preview_before_open boolean not null default false,
   google_event_id text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -19,6 +21,9 @@ create table if not exists public.classes (
 
 -- 기존 classes 테이블에 캘린더 이벤트 연결용 컬럼 추가(수업↔구글 캘린더 이벤트 매핑).
 alter table public.classes add column if not exists google_event_id text;
+-- 예약 오픈 일시 + 오픈 전 달력 미리보기(기존 테이블 보강).
+alter table public.classes add column if not exists open_at timestamptz;
+alter table public.classes add column if not exists preview_before_open boolean not null default false;
 
 create table if not exists public.reservations (
   id uuid primary key default gen_random_uuid(),
@@ -60,24 +65,34 @@ select
   c.capacity,
   c.is_public,
   c.status,
+  c.open_at,
+  c.preview_before_open,
+  (c.open_at is null or c.open_at <= now()) as is_open,
   count(r.id) filter (where (r.reservation_status = 'confirmed' or r.payment_status = 'paid') and r.reservation_status not in ('cancelled', 'no_show')) as confirmed_count,
   greatest(c.capacity - count(r.id) filter (where (r.reservation_status = 'confirmed' or r.payment_status = 'paid') and r.reservation_status not in ('cancelled', 'no_show')), 0) as available_count,
   count(r.id) filter (where r.reservation_status in ('applied', 'waitlisted')) as waitlist_count,
   count(r.id) filter (where r.reservation_status = 'payment_target') as payment_ready_count
 from public.classes c
 left join public.reservations r on r.class_id = c.id
-where c.is_public = true and c.status <> 'hidden'
+where c.is_public = true
+  and c.status <> 'hidden'
+  and (c.open_at is null or c.open_at <= now() or c.preview_before_open = true)
 group by c.id;
 
 alter table public.classes enable row level security;
 alter table public.reservations enable row level security;
 alter table public.message_logs enable row level security;
 
--- Public homepage can read only public class summaries.
+-- Public homepage can read only public + opened/preview class summaries.
+drop policy if exists "public can read open classes" on public.classes;
 create policy "public can read open classes"
 on public.classes for select
 to anon
-using (is_public = true and status <> 'hidden');
+using (
+  is_public = true
+  and status <> 'hidden'
+  and (open_at is null or open_at <= now() or preview_before_open = true)
+);
 
 -- 예약 신청은 submit-reservation Edge Function(service_role) 경유만 허용한다.
 -- (과거의 anon 직접 insert 정책은 제거됨 — 검증·중복차단·접수 문자를 서버에서 일원화)

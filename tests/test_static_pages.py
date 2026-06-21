@@ -358,5 +358,19 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("google_event_id", schema)
 
 
+    def test_class_open_schedule_schema(self):
+        schema = read_page("supabase/schema.sql")
+        # 새 컬럼
+        self.assertIn("open_at timestamptz", schema)
+        self.assertIn("preview_before_open boolean not null default false", schema)
+        self.assertIn("add column if not exists open_at", schema)
+        self.assertIn("add column if not exists preview_before_open", schema)
+        # 뷰: is_open 계산 + 오픈/미리보기 노출 조건
+        self.assertIn("as is_open", schema)
+        self.assertIn("c.open_at is null or c.open_at <= now() or c.preview_before_open", schema)
+        # RLS도 같은 조건
+        self.assertIn("open_at is null or open_at <= now() or preview_before_open", schema)
+
+
 if __name__ == "__main__":
     unittest.main()
