@@ -751,7 +751,7 @@
         }
         // 오픈 전(예약 불가) — 예약 모달 대신 안내. 인원 숨김.
         if (item.is_open === false) {
-          return '<button type="button" data-preview-open="' + escapeHtml(item.open_at || '') + '"'
+          return '<button type="button" data-preview-open="' + (item.open_at || '') + '"'
             + ' class="block w-full text-left rounded-lg bg-ink-50 border border-dashed border-ink-300 px-1 py-1 transition cursor-pointer overflow-hidden">'
             + '<span class="block text-[9px] sm:text-[11px] font-bold leading-tight tracking-tight text-ink-500">' + timeRange(item) + '</span>'
             + '<span class="block text-[10px] leading-tight text-ink-400 whitespace-nowrap">' + openDateLabel(item.open_at) + '</span>'
