@@ -305,6 +305,10 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("reservations_active_unique", schema)
         self.assertNotIn("anon can create reservation", schema)
 
+        # 오픈 전(open_at 미래) 수업은 예약 거부
+        self.assertIn("open_at", fn)
+        self.assertIn("아직 예약이 시작되지 않은 수업입니다", fn)
+
     def test_customer_reservation_lookup(self):
         page = read_page("lookup.html")
         fn = read_page("supabase/functions/lookup-reservation/index.ts")

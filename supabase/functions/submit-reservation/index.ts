@@ -127,10 +127,14 @@ serve(async (req) => {
     if (!classId) return jsonResponse({ ok: false, error: '수업이 선택되지 않았습니다.' }, 400);
 
     // 신청 가능한 수업인지 확인(공개 + 숨김 아님 + 아직 시작 전).
-    const classes = await supabaseFetch(`classes?id=eq.${encodeURIComponent(classId)}&select=id,class_date,start_time,end_time,is_public,status,capacity`);
+    const classes = await supabaseFetch(`classes?id=eq.${encodeURIComponent(classId)}&select=id,class_date,start_time,end_time,is_public,status,capacity,open_at`);
     const classRow = Array.isArray(classes) ? classes[0] : null;
     if (!classRow || classRow.is_public !== true || classRow.status === 'hidden') {
       return jsonResponse({ ok: false, error: '신청할 수 없는 수업입니다.' }, 400);
+    }
+    // 예약 오픈 일시가 미래면 아직 신청 불가(달력 미리보기 상태).
+    if (classRow.open_at && new Date(String(classRow.open_at)).getTime() > Date.now()) {
+      return jsonResponse({ ok: false, error: '아직 예약이 시작되지 않은 수업입니다.' }, 400);
     }
     let isPast = false;
     try {
