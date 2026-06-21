@@ -16,6 +16,7 @@
   <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.min.css" rel="stylesheet" />
 
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="holidays.js"></script>
   <script>
     tailwind.config = {
       theme: {
@@ -249,7 +250,7 @@
           </div>
 
           <div class="calendar-grid mt-6 text-center text-xs font-bold text-ink-400">
-            <div>일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div>토</div>
+            <div class="text-red-500">일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div>토</div>
           </div>
           <div id="calendar-body" class="calendar-grid mt-2"></div>
           <p id="calendar-empty" class="mt-6 text-sm text-ink-500 hidden">현재 열려 있는 예약 가능 일정이 없습니다. 새로운 일정이 곧 공개됩니다.</p>
@@ -771,14 +772,20 @@
 
       function dayCellHtml(y, m, d, isToday) {
         var items = classesByDate[ymd(y, m, d)] || [];
+        var dateStr = ymd(y, m, d);
+        var dow = new Date(y, m, d).getDay();
+        var hol = (typeof window.holidayName === 'function') ? window.holidayName(dateStr) : '';
+        var isRed = !!hol || dow === 0;
+        var numColor = isRed ? 'text-red-500' : (items.length ? 'text-ink-900' : 'text-ink-400');
         var head = isToday
           ? '<span class="inline-flex h-7 w-7 items-center justify-center rounded-full bg-red-500 text-xs font-extrabold text-white">' + d + '</span>'
-          : '<span class="text-sm font-bold ' + (items.length ? 'text-ink-900' : 'text-ink-400') + '">' + d + '</span>';
+          : '<span class="text-sm font-bold ' + numColor + '">' + d + '</span>';
+        var holLabel = hol ? '<div class="text-[9px] leading-tight text-red-500 truncate">' + hol + '</div>' : '';
         if (!items.length) {
-          return '<div class="calendar-day rounded-xl bg-white ring-1 ring-ink-200/60 p-2 text-right' + (isToday ? ' ring-2 ring-red-400' : '') + '">' + head + '</div>';
+          return '<div class="calendar-day rounded-xl bg-white ring-1 ring-ink-200/60 p-2 text-right overflow-hidden' + (isToday ? ' ring-2 ring-red-400' : '') + '">' + head + holLabel + '</div>';
         }
         return '<div class="calendar-day rounded-xl bg-white ring-1 ring-ink-200/60 p-1.5 text-left flex flex-col gap-1 overflow-hidden' + (isToday ? ' ring-2 ring-red-400' : '') + '">'
-          + '<div class="text-right leading-none">' + head + '</div>' + items.map(classAnchorHtml).join('') + '</div>';
+          + '<div class="text-right leading-none">' + head + holLabel + '</div>' + items.map(classAnchorHtml).join('') + '</div>';
       }
 
       function renderMonth() {

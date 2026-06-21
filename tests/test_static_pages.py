@@ -68,6 +68,9 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("data-preview-open", html)
         self.assertIn("is_open", html)
         self.assertIn("예약 오픈", html)
+        # 공휴일 표시
+        self.assertIn('src="holidays.js"', html)
+        self.assertIn("holidayName", html)
 
     def test_class_info_shows_next_one_day_class_schedule(self):
         html = read_page("index.html")
