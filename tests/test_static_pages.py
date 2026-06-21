@@ -196,6 +196,8 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn('type="datetime-local"', html)
         self.assertIn("inputToOpenAtIso", html)
         self.assertIn("openAtToInput", html)
+        self.assertIn('src="holidays.js"', html)
+        self.assertIn("holidayName", html)
 
     def test_admin_reservations_edge_function_protects_private_reads(self):
         edge = read_page("supabase/functions/admin-reservations/index.ts")
