@@ -388,6 +388,17 @@ class StaticPageTests(unittest.TestCase):
         # RLS도 같은 조건
         self.assertIn("open_at is null or open_at <= now() or preview_before_open", schema)
 
+    def test_holidays_data_file(self):
+        hol = read_page("holidays.js")
+        self.assertIn("KR_HOLIDAYS", hol)
+        self.assertIn("holidayName", hol)
+        self.assertIn("'2026-01-01': '신정'", hol)
+        self.assertIn("'2026-05-05': '어린이날'", hol)
+        self.assertIn("'2026-09-25': '추석'", hol)
+        self.assertIn("대체공휴일", hol)
+        self.assertIn("'2027-02-09': '대체공휴일'", hol)
+        self.assertIn("'2027-12-25': '성탄절'", hol)
+
 
 if __name__ == "__main__":
     unittest.main()
