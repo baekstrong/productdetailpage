@@ -65,13 +65,13 @@ select
   c.capacity,
   c.is_public,
   c.status,
-  c.open_at,
-  c.preview_before_open,
-  (c.open_at is null or c.open_at <= now()) as is_open,
   count(r.id) filter (where (r.reservation_status = 'confirmed' or r.payment_status = 'paid') and r.reservation_status not in ('cancelled', 'no_show')) as confirmed_count,
   greatest(c.capacity - count(r.id) filter (where (r.reservation_status = 'confirmed' or r.payment_status = 'paid') and r.reservation_status not in ('cancelled', 'no_show')), 0) as available_count,
   count(r.id) filter (where r.reservation_status in ('applied', 'waitlisted')) as waitlist_count,
-  count(r.id) filter (where r.reservation_status = 'payment_target') as payment_ready_count
+  count(r.id) filter (where r.reservation_status = 'payment_target') as payment_ready_count,
+  c.open_at,
+  c.preview_before_open,
+  (c.open_at is null or c.open_at <= now()) as is_open
 from public.classes c
 left join public.reservations r on r.class_id = c.id
 where c.is_public = true
