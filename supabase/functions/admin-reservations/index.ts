@@ -172,7 +172,7 @@ async function classInfo(classId: string): Promise<{ label: string; place: strin
   return { label: '', place: '', class_date: '', end_time: '' };
 }
 
-const CLASS_FIELDS = ['class_date', 'start_time', 'end_time', 'place', 'capacity', 'is_public', 'status'];
+const CLASS_FIELDS = ['class_date', 'start_time', 'end_time', 'place', 'capacity', 'is_public', 'status', 'preview_before_open'];
 const CLASS_STATUSES = new Set(['open', 'waitlist', 'closed', 'hidden']);
 
 function pickClassFields(input: Record<string, unknown>): Record<string, unknown> {
@@ -180,9 +180,11 @@ function pickClassFields(input: Record<string, unknown>): Record<string, unknown
   for (const key of CLASS_FIELDS) {
     if (input[key] === undefined || input[key] === null || input[key] === '') continue;
     if (key === 'capacity') row[key] = Number(input[key]);
-    else if (key === 'is_public') row[key] = Boolean(input[key]);
+    else if (key === 'is_public' || key === 'preview_before_open') row[key] = Boolean(input[key]);
     else row[key] = input[key];
   }
+  // open_at은 빈값이면 NULL(즉시 오픈)로 명시 저장 — 화이트리스트 루프와 달리 '지우기'를 허용.
+  if ('open_at' in input) row.open_at = input.open_at ? input.open_at : null;
   if (row.status !== undefined && !CLASS_STATUSES.has(String(row.status))) throw new Error('invalid class status');
   return row;
 }
@@ -212,6 +214,9 @@ async function listAdminData() {
       capacity: c.capacity,
       is_public: c.is_public,
       status: c.status,
+      open_at: c.open_at || null,
+      preview_before_open: c.preview_before_open === true,
+      is_open: c.open_at ? (new Date(String(c.open_at)).getTime() <= Date.now()) : true,
       confirmed_count: confirmed,
       available_count: Math.max(Number(c.capacity || 0) - confirmed, 0),
       waitlist_count: waitlist,
