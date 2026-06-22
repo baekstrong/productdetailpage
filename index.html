@@ -762,11 +762,16 @@
         var reservable = available > 0 && item.status !== 'closed';
         var tone = reservable ? 'bg-brand-50 ring-1 ring-brand-500 hover:bg-brand-100' : 'bg-white ring-1 ring-ink-300 hover:bg-ink-100';
         var timeColor = reservable ? 'text-brand-700' : 'text-ink-700';
+        // 가능/대기 숫자를 동시에 보여주면 헷갈려서, 상태 한 줄만 표시.
+        var status = reservable
+          ? '<span class="block text-[10px] font-bold leading-tight text-brand-700">예약 가능</span>'
+            + '<span class="block text-[10px] leading-tight text-ink-500 whitespace-nowrap">' + available + '자리 남음</span>'
+          : '<span class="block text-[10px] font-bold leading-tight text-ink-600">대기 가능</span>'
+            + '<span class="block text-[10px] leading-tight text-ink-500 whitespace-nowrap">' + item.waitlist_count + '명 대기중</span>';
         return '<button type="button" data-reservation-date="' + item.date + ' ' + item.start_time + '" data-class-id="' + (item.id || '') + '"'
           + ' class="block w-full text-left rounded-lg ' + tone + ' px-1 py-1 transition cursor-pointer overflow-hidden">'
           + '<span class="block text-[9px] sm:text-[11px] font-bold leading-tight tracking-tight ' + timeColor + '">' + timeRange(item) + '</span>'
-          + '<span class="block text-[10px] leading-tight text-ink-700 whitespace-nowrap">가능 ' + available + '</span>'
-          + '<span class="block text-[10px] leading-tight text-ink-500 whitespace-nowrap">대기 ' + item.waitlist_count + '</span>'
+          + status
           + '</button>';
       }
 
