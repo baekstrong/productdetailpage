@@ -770,8 +770,8 @@
         var status = reservable
           ? '<span class="block text-[10px] font-bold leading-tight text-brand-700">예약 가능</span>'
             + '<span class="block text-[10px] leading-tight text-ink-500 whitespace-nowrap">' + openSeats + '자리 남음</span>'
-          : '<span class="block text-[10px] font-bold leading-tight text-ink-600">대기 가능</span>'
-            + '<span class="block text-[10px] leading-tight text-ink-500 whitespace-nowrap">' + waiting + '명 대기중</span>';
+          : '<span class="block text-[10px] font-bold leading-tight text-ink-700">만석</span>'
+            + '<span class="block text-[10px] leading-tight text-ink-500 whitespace-nowrap">' + (waiting > 0 ? '대기 가능 ' + waiting + '명' : '대기 가능') + '</span>';
         return '<button type="button" data-reservation-date="' + item.date + ' ' + item.start_time + '" data-class-id="' + (item.id || '') + '"'
           + ' class="block w-full text-left rounded-lg ' + tone + ' px-1 py-1 transition cursor-pointer overflow-hidden">'
           + '<span class="block text-[9px] sm:text-[11px] font-bold leading-tight tracking-tight ' + timeColor + '">' + timeRange(item) + '</span>'
