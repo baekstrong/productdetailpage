@@ -607,6 +607,7 @@
             <p id="selected-date" class="mt-2 text-sm text-ink-500">
               선택한 날짜를 기준으로 예약 신청을 남겨주세요. 신청 후 결제 안내는 문자로 보내드립니다.
             </p>
+            <p id="waitlist-notice" class="mt-2 text-sm font-semibold text-ink-700 hidden"></p>
           </div>
           <button type="button" data-modal-close aria-label="닫기" class="shrink-0 -mr-1 -mt-1 inline-flex h-9 w-9 items-center justify-center rounded-full text-ink-400 hover:bg-ink-100 hover:text-ink-700 text-xl">✕</button>
         </div>
@@ -761,6 +762,8 @@
         var available = availableOf(item);
         // 빈 자리(미확정)보다 이미 줄 선(신청) 인원이 많거나 같으면 선착순으로 꽉 찬 것 — '예약 가능' 아님.
         var openSeats = available - item.waitlist_count;
+        // 대기 인원(자리 초과분) — 칸엔 안 보이고, 신청 모달에서 "현재 N명 대기중" 안내에 쓴다.
+        var waiting = Math.max(0, item.waitlist_count - available);
         var reservable = openSeats > 0 && item.status !== 'closed';
         var tone = reservable ? 'bg-brand-50 ring-1 ring-brand-500 hover:bg-brand-100' : 'bg-white ring-1 ring-ink-300 hover:bg-ink-100';
         var timeColor = reservable ? 'text-brand-700' : 'text-ink-700';
@@ -770,7 +773,7 @@
             + '<span class="block text-[10px] leading-tight text-ink-500 whitespace-nowrap">' + openSeats + '자리 남음</span>'
           : '<span class="block text-[10px] font-bold leading-tight text-ink-700">만석</span>'
             + '<span class="block text-[10px] leading-tight text-ink-500 whitespace-nowrap">대기 가능</span>';
-        return '<button type="button" data-reservation-date="' + item.date + ' ' + item.start_time + '" data-class-id="' + (item.id || '') + '"'
+        return '<button type="button" data-reservation-date="' + item.date + ' ' + item.start_time + '" data-class-id="' + (item.id || '') + '" data-waiting="' + (reservable ? 0 : waiting) + '"'
           + ' class="block w-full text-left rounded-lg ' + tone + ' px-1 py-1 transition cursor-pointer overflow-hidden">'
           + '<span class="block text-[9px] sm:text-[11px] font-bold leading-tight tracking-tight ' + timeColor + '">' + timeRange(item) + '</span>'
           + status
@@ -969,11 +972,21 @@
           if (!link) return;
           var date = link.getAttribute('data-reservation-date');
           var classId = link.getAttribute('data-class-id') || '';
+          var waiting = Number(link.getAttribute('data-waiting') || 0);
           var selected = document.getElementById('selected-date');
           var classIdInput = document.getElementById('reservation-class-id');
           var classDateInput = document.getElementById('reservation-class-date');
           var message = document.getElementById('reservation-submit-message');
+          var notice = document.getElementById('waitlist-notice');
           if (selected) selected.textContent = date + ' 수업 예약 신청을 남겨주세요. 신청 후 결제 안내는 문자로 보내드립니다.';
+          if (notice) {
+            if (waiting > 0) {
+              notice.textContent = '현재 ' + waiting + '명 대기중입니다. 신청하시면 대기 명단에 등록됩니다.';
+              notice.classList.remove('hidden');
+            } else {
+              notice.classList.add('hidden');
+            }
+          }
           if (classIdInput) classIdInput.value = classId;
           if (classDateInput) classDateInput.value = date;
           if (message) message.textContent = '신청 후 결제 안내는 문자로 보내드립니다.';
