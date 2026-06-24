@@ -761,8 +761,6 @@
         var available = availableOf(item);
         // 빈 자리(미확정)보다 이미 줄 선(신청) 인원이 많거나 같으면 선착순으로 꽉 찬 것 — '예약 가능' 아님.
         var openSeats = available - item.waitlist_count;
-        // 대기중 = 선착순으로 빈 자리에 들어간 인원을 뺀, 자리 초과 대기 인원.
-        var waiting = Math.max(0, item.waitlist_count - available);
         var reservable = openSeats > 0 && item.status !== 'closed';
         var tone = reservable ? 'bg-brand-50 ring-1 ring-brand-500 hover:bg-brand-100' : 'bg-white ring-1 ring-ink-300 hover:bg-ink-100';
         var timeColor = reservable ? 'text-brand-700' : 'text-ink-700';
@@ -771,7 +769,7 @@
           ? '<span class="block text-[10px] font-bold leading-tight text-brand-700">예약 가능</span>'
             + '<span class="block text-[10px] leading-tight text-ink-500 whitespace-nowrap">' + openSeats + '자리 남음</span>'
           : '<span class="block text-[10px] font-bold leading-tight text-ink-700">만석</span>'
-            + '<span class="block text-[10px] leading-tight text-ink-500 whitespace-nowrap">' + (waiting > 0 ? '대기 가능 ' + waiting + '명' : '대기 가능') + '</span>';
+            + '<span class="block text-[10px] leading-tight text-ink-500 whitespace-nowrap">대기 가능</span>';
         return '<button type="button" data-reservation-date="' + item.date + ' ' + item.start_time + '" data-class-id="' + (item.id || '') + '"'
           + ' class="block w-full text-left rounded-lg ' + tone + ' px-1 py-1 transition cursor-pointer overflow-hidden">'
           + '<span class="block text-[9px] sm:text-[11px] font-bold leading-tight tracking-tight ' + timeColor + '">' + timeRange(item) + '</span>'
