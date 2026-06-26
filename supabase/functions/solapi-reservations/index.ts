@@ -15,7 +15,8 @@ type MessageType =
   | 'payment_expired'
   | 'class_reminder'
   | 'review_material'
-  | 'reservation_cancelled';
+  | 'reservation_cancelled'
+  | 'admin_payment_reminder';
 
 const templates: Record<MessageType, string> = {
   // 예약 신청 완료 문자(레거시 — 신규 신청은 reservation_success/reservation_waitlist 사용)
@@ -103,6 +104,10 @@ https://www.notion.so/easystrength/Part-2-9910eb46d55f40efad4f986986f5876d?sourc
 
 다시 수강을 원하시면 예약 페이지에서 신청해 주세요
 좋은 일정으로 다시 만나 뵙겠습니다`,
+  // 운영자(백관장)용 D-7 결제 안내 리마인더
+  admin_payment_reminder: `[케틀벨 원데이 리마인더]
+{class_label} 수업이 7일 앞입니다.
+현재 신청 {count}명 — 선착순 승인하고 결제 안내를 보내주세요.`,
   // 복습 영상은 백관장 수동 발송
 };
 

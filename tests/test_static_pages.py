@@ -260,6 +260,10 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("groupId", solapi)
         self.assertIn("scheduledDate", solapi)
 
+        # Task 2: 운영자 결제 리마인더 템플릿
+        self.assertIn("admin_payment_reminder", solapi)
+        self.assertIn("7일 앞입니다", solapi)
+
 
     def test_message_status_dashboard(self):
         admin = read_page("admin.html")
