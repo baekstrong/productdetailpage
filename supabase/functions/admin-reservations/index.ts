@@ -256,6 +256,8 @@ async function updateClass(classId: string, updates: Record<string, unknown>) {
   if (!classId) throw new Error('classId is required');
   const row = pickClassFields(updates || {});
   row.updated_at = new Date().toISOString();
+  // 수업 날짜를 바꾸면 결제 리마인더 이력을 초기화 — 새 날짜 기준 D-7에 다시 가도록.
+  if (row.class_date !== undefined) row.payment_reminder_sent_at = null;
   const updated = await supabaseFetch(`classes?id=eq.${encodeURIComponent(classId)}&select=*`, {
     method: 'PATCH',
     headers: { prefer: 'return=representation' },

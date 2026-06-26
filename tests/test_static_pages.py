@@ -225,6 +225,7 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("open_at", admin_fn)
         self.assertIn("preview_before_open", admin_fn)
         self.assertIn("is_open", admin_fn)
+        self.assertIn("payment_reminder_sent_at", admin_fn)
         self.assertIn("SOLAPI_API_KEY", solapi)
         self.assertIn("SOLAPI_API_SECRET", solapi)
         self.assertIn("예약 신청 완료 문자", solapi)
