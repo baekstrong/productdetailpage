@@ -404,6 +404,11 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("'2027-02-09': '대체공휴일'", hol)
         self.assertIn("'2027-12-25': '성탄절'", hol)
 
+    def test_payment_reminder_schema(self):
+        schema = read_page("supabase/schema.sql")
+        self.assertIn("payment_reminder_sent_at timestamptz", schema)
+        self.assertIn("add column if not exists payment_reminder_sent_at", schema)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -14,6 +14,7 @@ create table if not exists public.classes (
   status text not null default 'open' check (status in ('open', 'waitlist', 'closed', 'hidden')),
   open_at timestamptz,
   preview_before_open boolean not null default false,
+  payment_reminder_sent_at timestamptz,
   google_event_id text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -24,6 +25,7 @@ alter table public.classes add column if not exists google_event_id text;
 -- 예약 오픈 일시 + 오픈 전 달력 미리보기(기존 테이블 보강).
 alter table public.classes add column if not exists open_at timestamptz;
 alter table public.classes add column if not exists preview_before_open boolean not null default false;
+alter table public.classes add column if not exists payment_reminder_sent_at timestamptz;
 
 create table if not exists public.reservations (
   id uuid primary key default gen_random_uuid(),
