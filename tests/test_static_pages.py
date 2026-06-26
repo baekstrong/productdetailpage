@@ -414,5 +414,17 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("add column if not exists payment_reminder_sent_at", schema)
 
 
+    def test_payment_reminder_function(self):
+        fn = read_page("supabase/functions/payment-reminder/index.ts")
+        self.assertIn("SUPABASE_SERVICE_ROLE_KEY", fn)
+        self.assertIn("timingSafeEqual", fn)
+        self.assertIn("ADMIN_PHONE", fn)
+        self.assertIn("admin_payment_reminder", fn)
+        self.assertIn("payment_reminder_sent_at", fn)
+        self.assertIn("applied,waitlisted,payment_target", fn)
+        config = read_page("supabase/config.toml")
+        self.assertIn("[functions.payment-reminder]", config)
+
+
 if __name__ == "__main__":
     unittest.main()
