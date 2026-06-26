@@ -423,6 +423,7 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("admin_payment_reminder", fn)
         self.assertIn("payment_reminder_sent_at", fn)
         self.assertIn("applied,waitlisted,payment_target", fn)
+        self.assertIn("payment_status=neq.paid", fn)
         config = read_page("supabase/config.toml")
         self.assertIn("[functions.payment-reminder]", config)
 

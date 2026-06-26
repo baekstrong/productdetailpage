@@ -93,8 +93,9 @@ serve(async (req) => {
     let sent = 0;
     for (const c of rows) {
       // 미결제 활성 신청자(승인 전 + 결제대상). 취소·노쇼·결제완료 제외.
+      // 결제완료는 reservation_status='confirmed' 또는 payment_status='paid' 두 경로 — paid도 제외해야 정확.
       const apps = await supabaseFetch(
-        `reservations?class_id=eq.${encodeURIComponent(String(c.id))}&reservation_status=in.(applied,waitlisted,payment_target)&select=id`
+        `reservations?class_id=eq.${encodeURIComponent(String(c.id))}&reservation_status=in.(applied,waitlisted,payment_target)&payment_status=neq.paid&select=id`
       );
       const count = Array.isArray(apps) ? apps.length : 0;
       if (count < 1) continue;
