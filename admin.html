@@ -372,6 +372,19 @@
       return `${names.slice(0, 3).join(', ')} 외 ${names.length - 3}명`;
     }
 
+    // 예약 발송 시각 "2026-06-26T18:00:00+09:00" → " · 6/26 18:00 발송 예정 / 예약시각 지남".
+    // ⚠️ Solapi가 예약시각에 실제 발송해도 우리 DB로 콜백이 없어 현황은 계속 '예약'으로 남는다.
+    //    예약시각이 지났으면 (특이사항 없는 한) 이미 발송된 것 — 그걸 운영자가 알 수 있게 표기.
+    function schedLabel(iso) {
+      const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+      if (!m) return '';
+      const when = `${+m[2]}/${+m[3]} ${m[4]}:${m[5]}`;
+      const past = new Date(iso).getTime() < Date.now();
+      return past
+        ? ` <span class="font-normal text-slate-500">· ${when} 예약시각 지남(발송 완료 추정)</span>`
+        : ` <span class="font-normal text-slate-500">· ${when} 발송 예정</span>`;
+    }
+
     function bestLogStatus(statuses) {
       if (statuses.includes('sent')) return 'sent';
       if (statuses.includes('scheduled')) return 'scheduled';
@@ -392,18 +405,24 @@
       (logs || []).forEach((log) => {
         if (!types.includes(log.message_type)) return;
         if (!resById[log.reservation_id]) return;
-        (byRes[log.reservation_id] = byRes[log.reservation_id] || []).push(log.status);
+        (byRes[log.reservation_id] = byRes[log.reservation_id] || []).push(log);
       });
       const sent = [], scheduled = [], missing = [];
+      let scheduledAt = null; // 예약 발송 시각(같은 수업이면 전원 동일) — 현황에 날짜·시간 표기용
       Object.keys(byRes).forEach((rid) => {
-        const best = bestLogStatus(byRes[rid]);
+        const rowLogs = byRes[rid];
+        const best = bestLogStatus(rowLogs.map((l) => l.status));
         const name = resById[rid] ? resById[rid].applicant_name : '';
         if (best === 'sent') sent.push({ id: rid, name });
-        else if (best === 'scheduled') scheduled.push({ id: rid, name });
+        else if (best === 'scheduled') {
+          scheduled.push({ id: rid, name });
+          const at = rowLogs.filter((l) => l.status === 'scheduled' && l.scheduled_at).map((l) => l.scheduled_at).sort().pop();
+          if (at && (!scheduledAt || at > scheduledAt)) scheduledAt = at;
+        }
         else if (best === 'cancelled') { /* 취소는 행에서 완전 제외 */ }
         else missing.push({ id: rid, name });
       });
-      return { sent, scheduled, missing };
+      return { sent, scheduled, missing, scheduledAt };
     }
 
     function statusRowHtml(label, summaryHtml, actionHtml) {
@@ -422,15 +441,15 @@
         if (!row.type) {
           return statusRowHtml(row.label, `<span class="text-slate-400">${escapeHtml(row.fixed)}</span>`, '');
         }
-        const { sent, scheduled, missing } = summarizeMessageStatus(row.type, reservations, logs);
+        const { sent, scheduled, missing, scheduledAt } = summarizeMessageStatus(row.type, reservations, logs);
         const n = sent.length + scheduled.length + missing.length;
         let summary, action = '';
         if (n === 0) {
           summary = '<span class="text-slate-400">발송 내역 없음</span>';
         } else if (missing.length === 0) {
           if (scheduled.length === 0) summary = `<span class="font-bold text-emerald-700">✅ 전체 발송 완료 (${nameList(sent)})</span>`;
-          else if (sent.length === 0) summary = `<span class="font-bold text-sky-700">📅 전체 예약 완료 (${nameList(scheduled)})</span>`;
-          else summary = `<span class="font-bold text-emerald-700">발송: ${nameList(sent)} · 예약: ${nameList(scheduled)}</span>`;
+          else if (sent.length === 0) summary = `<span class="font-bold text-sky-700">📅 전체 예약 완료 (${nameList(scheduled)})${schedLabel(scheduledAt)}</span>`;
+          else summary = `<span class="font-bold text-emerald-700">발송: ${nameList(sent)} · 예약: ${nameList(scheduled)}${schedLabel(scheduledAt)}</span>`;
         } else {
           const names = missing.map((m) => escapeHtml(m.name)).join(', ');
           summary = `<span class="font-bold text-amber-700">발송 완료 (제외: ${names})</span>`;

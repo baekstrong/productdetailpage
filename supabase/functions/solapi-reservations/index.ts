@@ -89,7 +89,9 @@ const templates: Record<MessageType, string> = {
 
 수업 일정: {class_date}
 장소: {place}(https://naver.me/xiqDtNuY)
-준비물: 편한 복장, 물 또는 텀블러 (신발은 필요 없습니다)`,
+준비물: 편한 복장, 물 또는 텀블러 (신발은 필요 없습니다)
+
+별도 주차 공간이 없으니 대중교통을 이용해 주시기 바랍니다`,
   // 수업 후 복습 자료 문자
   review_material: `오늘 케틀벨 원데이 수업 고생하셨습니다
 
