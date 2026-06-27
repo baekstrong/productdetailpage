@@ -431,11 +431,14 @@ async function cancelScheduledFollowups(reservationId: string) {
 }
 
 // 재발송 가능한 자동 문자 종류 화이트리스트.
-const RESENDABLE_TYPES = new Set(['reservation_received', 'payment 안내', 'seat_opened', 'payment_completed', 'class_reminder', 'review_material', 'reservation_cancelled']);
+const RESENDABLE_TYPES = new Set(['reservation_received', 'payment 안내', 'seat_opened', 'payment_completed', 'class_reminder', 'review_material', 'review_video', 'reservation_cancelled']);
 
 // 현황판에서 미발송자에게 해당 종류 문자를 재발송한다.
-async function resendMessage(classId: string, messageType: string, reservationIds: string[]) {
+async function resendMessage(classId: string, messageType: string, reservationIds: string[], videoUrl?: string) {
   if (!RESENDABLE_TYPES.has(messageType)) throw new Error('invalid messageType');
+  // 복습 영상은 수업마다 링크가 달라 관리자가 입력한 값을 받아 발송한다.
+  const videoLink = String(videoUrl || '').trim();
+  if (messageType === 'review_video' && !videoLink) throw new Error('복습 영상 링크가 필요합니다');
   if (!Array.isArray(reservationIds) || !reservationIds.length) return { ok: true, sent: 0 };
   const info = await classInfo(classId);
   let sent = 0;
@@ -452,6 +455,7 @@ async function resendMessage(classId: string, messageType: string, reservationId
     } else {
       const values: Record<string, string> = { class_date: info.label, place: info.place };
       if (messageType === 'payment 안내' || messageType === 'seat_opened') values.payment_url = PAYMENT_LINK;
+      if (messageType === 'review_video') values.video_url = videoLink;
       await notify(reservation, messageType, values);
     }
     sent += 1;
@@ -526,6 +530,7 @@ serve(async (req) => {
         String(body.classId || ''),
         String(body.messageType || ''),
         Array.isArray(body.reservationIds) ? body.reservationIds.map(String) : [],
+        body.videoUrl ? String(body.videoUrl) : undefined,
       ));
     }
 

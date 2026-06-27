@@ -230,8 +230,8 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("SOLAPI_API_SECRET", solapi)
         self.assertIn("예약 신청 완료 문자", solapi)
         self.assertIn("수업 전 리마인드 문자", solapi)
-        self.assertIn("복습 영상은 백관장 수동 발송", solapi)
-        self.assertNotIn("review_video", solapi)
+        self.assertIn("복습 영상 안내 문자", solapi)
+        self.assertIn("review_video", solapi)
 
 
     def test_sms_automation_seat_reminder_review_and_cancel(self):
@@ -278,7 +278,7 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("data-resend-type", admin)
         self.assertIn("reservation_received", admin)
         self.assertIn("reservation_cancelled", admin)
-        self.assertIn("수동 발송", admin)
+        self.assertIn("data-send-video", admin)
         self.assertIn("제외:", admin)
 
         # 서버: message_logs 제공 + 재발송 액션

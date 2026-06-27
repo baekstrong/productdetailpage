@@ -15,6 +15,7 @@ type MessageType =
   | 'payment_expired'
   | 'class_reminder'
   | 'review_material'
+  | 'review_video'
   | 'reservation_cancelled'
   | 'admin_payment_reminder';
 
@@ -99,6 +100,13 @@ const templates: Record<MessageType, string> = {
 https://www.notion.so/easystrength/Part-2-9910eb46d55f40efad4f986986f5876d?source=copy_link
 
 복습 영상 링크는 별도로 안내드리겠습니다`,
+  // 복습 영상 안내 문자 — 관리자가 영상 링크를 입력해 발송
+  review_video: `케틀벨 원데이 수업 복습 영상입니다
+
+{video_url}
+
+수업에서 다룬 동작을 영상으로 다시 확인해 보세요
+고생하셨습니다!`,
   // 예약 취소 안내 문자
   reservation_cancelled: `케틀벨 원데이 수업 예약이 취소 처리되었습니다
 
@@ -110,7 +118,6 @@ https://www.notion.so/easystrength/Part-2-9910eb46d55f40efad4f986986f5876d?sourc
   admin_payment_reminder: `[케틀벨 원데이 리마인더]
 {class_label} 수업이 7일 앞입니다.
 현재 신청 {count}명 — 선착순 승인하고 결제 안내를 보내주세요.`,
-  // 복습 영상은 백관장 수동 발송
 };
 
 function fillTemplate(template: string, values: Record<string, string>): string {
