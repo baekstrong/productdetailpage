@@ -8,6 +8,9 @@ const corsHeaders = {
   'access-control-allow-headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// 한 번호로는 한 수업만 신청 가능(날짜 무관). 중복 차단 응답 문구를 한 곳에서 관리.
+const DUPLICATE_MESSAGE = '이미 신청하신 수업이 있습니다. 한 번호로는 한 수업만 신청할 수 있어요. 결제 안내 문자를 기다려 주세요.';
+
 function jsonResponse(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), { status, headers: { ...corsHeaders, 'content-type': 'application/json' } });
 }
@@ -147,12 +150,12 @@ serve(async (req) => {
       return jsonResponse({ ok: false, error: '이미 종료된 수업입니다.' }, 400);
     }
 
-    // 같은 수업에 활성 신청(취소/불참 제외)이 이미 있으면 중복 차단.
+    // 같은 번호로 활성 신청(취소/불참 제외)이 이미 있으면 중복 차단 — 날짜와 무관하게 한 번호당 한 수업만.
     const dupes = await supabaseFetch(
-      `reservations?class_id=eq.${encodeURIComponent(classId)}&phone=eq.${encodeURIComponent(phone)}&reservation_status=not.in.(cancelled,no_show)&select=id`
+      `reservations?phone=eq.${encodeURIComponent(phone)}&reservation_status=not.in.(cancelled,no_show)&select=id`
     );
     if (Array.isArray(dupes) && dupes.length > 0) {
-      return jsonResponse({ ok: false, error: '이미 이 수업에 신청되어 있습니다. 결제 안내 문자를 기다려 주세요.' }, 409);
+      return jsonResponse({ ok: false, error: DUPLICATE_MESSAGE }, 409);
     }
 
     const created = await supabaseFetch('reservations', {
@@ -185,7 +188,7 @@ serve(async (req) => {
     const message = error instanceof Error ? error.message : 'unknown error';
     // 유니크 인덱스 위반(동시 신청 레이스)은 중복 신청과 같은 한글 안내로 응답.
     if (message.includes('23505') || message.includes('reservations_active_unique')) {
-      return jsonResponse({ ok: false, error: '이미 이 수업에 신청되어 있습니다. 결제 안내 문자를 기다려 주세요.' }, 409);
+      return jsonResponse({ ok: false, error: DUPLICATE_MESSAGE }, 409);
     }
     return jsonResponse({ ok: false, error: message }, 500);
   }

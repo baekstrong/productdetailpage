@@ -328,6 +328,16 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("reservations_active_unique", schema)
         self.assertNotIn("anon can create reservation", schema)
 
+        # 중복 차단은 '수업별'이 아니라 '번호 전체' 기준 — 한 번호당 한 수업만.
+        self.assertIn("phone=eq.${encodeURIComponent(phone)}&reservation_status=not.in.(cancelled,no_show)&select=id", fn)
+        self.assertNotIn("class_id=eq.${encodeURIComponent(classId)}&phone=eq.", fn)
+        self.assertIn("한 번호로는 한 수업만 신청할 수 있어요", fn)
+        self.assertIn("on public.reservations (phone)", schema)
+        self.assertNotIn("reservations (class_id, phone)", schema)
+        # 어드민: 번호별 중복 신청 배너/집계
+        self.assertIn("dup-phone-alert", admin)
+        self.assertIn("activeReservationsByPhone", admin)
+
         # 오픈 전(open_at 미래) 수업은 예약 거부
         self.assertIn("open_at", fn)
         self.assertIn("아직 예약이 시작되지 않은 수업입니다", fn)

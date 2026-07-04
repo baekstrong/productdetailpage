@@ -102,6 +102,8 @@
           </div>
         </div>
 
+        <div id="dup-phone-alert" class="mt-4 hidden rounded-2xl bg-rose-50 p-4 text-sm ring-1 ring-rose-200"></div>
+
         <div class="mt-5 flex flex-wrap items-center gap-2 rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-200">
           <span id="selected-count" class="mr-1 text-sm font-bold text-slate-700">선택 0명</span>
           <span class="mr-1 text-xs text-slate-400">선택한 신청자에게 적용 →</span>
@@ -308,6 +310,44 @@
       return `<span class="ml-1 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700" title="결제 안내 문자 발송 후 ${hours}시간 경과 — 미결제. 필요하면 미결제 마감 처리하세요.">${hours}h 경과</span>`;
     }
 
+    function classDateLabel(classId) {
+      const c = (adminData.classes || []).find((x) => x.class_id === classId);
+      return (c && c.class_date) || classId;
+    }
+    // 취소/불참 제외 활성 신청을 번호별로 묶는다(전체 수업 기준). 한 번호에 2건 이상이면 중복.
+    function activeReservationsByPhone() {
+      const map = {};
+      (adminData.reservations || []).forEach((r) => {
+        if (r.reservation_status === 'cancelled' || r.reservation_status === 'no_show') return;
+        const key = r.phone || '';
+        if (!key) return;
+        (map[key] = map[key] || []).push(r);
+      });
+      return map;
+    }
+    // 여러 날짜에 걸쳐 한 번호로 신청한 건을 상단 배너로 알린다(남길 1건 외 취소 유도).
+    function renderDupPhoneAlert() {
+      const box = document.getElementById('dup-phone-alert');
+      if (!box) return;
+      const map = activeReservationsByPhone();
+      const dups = Object.keys(map).filter((p) => map[p].length >= 2);
+      if (!dups.length) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+      box.classList.remove('hidden');
+      const lines = dups.map((phone) => {
+        const group = map[phone];
+        const name = group[0].applicant_name || '';
+        const dates = [...new Set(group.map((x) => classDateLabel(x.class_id)))].sort().join(', ');
+        return `<li class="mt-1"><span class="font-bold">${escapeHtml(name)}</span> ${escapeHtml(phone)} — ${escapeHtml(dates)} <span class="font-bold text-rose-700">(${group.length}건)</span></li>`;
+      }).join('');
+      box.innerHTML = `<p class="font-bold text-rose-700">⚠ 한 번호로 여러 건 신청 ${dups.length}건 — 한 번호당 한 수업 원칙입니다. 남길 1건 외에는 취소 처리하세요.</p><ul class="mt-1 list-none">${lines}</ul>`;
+    }
+
+    function dupBadgeHtml(group) {
+      if (!group || group.length < 2) return '';
+      const dates = [...new Set(group.map((x) => classDateLabel(x.class_id)))].sort().join(', ');
+      return ` <span class="ml-1 rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-700" title="${escapeHtml('신청 ' + group.length + '건: ' + dates)}">중복 ${group.length}건</span>`;
+    }
+
     function renderReservations(rows, classItem) {
       const body = document.getElementById('reservation-rows');
       document.getElementById('reservation-count').textContent = `${rows.length}명`;
@@ -333,13 +373,14 @@
         body.innerHTML = '<tr><td class="p-5 text-center text-slate-500" colspan="12">이 수업일 예약자가 아직 없습니다.</td></tr>';
         return;
       }
+      const activeByPhone = activeReservationsByPhone();
       body.innerHTML = rows.map((r, index) => `
         <tr class="border-b border-slate-100 align-top">
           <td class="p-3"><input type="checkbox" data-reservation-check value="${escapeHtml(r.id)}" aria-label="신청자 선택" /></td>
           <td class="p-3">${index + 1}</td>
           <td class="p-3">${groupBadgeHtml(r, liveRank, remaining)}</td>
           <td class="p-3 font-bold">${escapeHtml(r.applicant_name)}</td>
-          <td class="p-3">${escapeHtml(r.phone)}</td>
+          <td class="p-3">${escapeHtml(r.phone)}${dupBadgeHtml(activeByPhone[r.phone])}</td>
           <td class="p-3">${escapeHtml(r.kettlebell_experience || '')}</td>
           <td class="p-3" title="${escapeHtml(r.reason || '')}">${escapeHtml(r.reason || '')}</td>
           <td class="p-3">${escapeHtml(statusLabels[r.reservation_status] || r.reservation_status)}</td>
@@ -521,6 +562,7 @@
       }
       const currentClass = adminData.classes.find((item) => item.class_id === selectedClassId());
       renderSummary(currentClass);
+      renderDupPhoneAlert();
       renderReservations(reservationsForSelectedClass(), currentClass);
       renderMessageStatus();
       renderClassManager(adminData.classes); // 선택 하이라이트 갱신 위해 표도 다시 렌더
