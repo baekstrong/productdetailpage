@@ -102,8 +102,6 @@
           </div>
         </div>
 
-        <div id="dup-phone-alert" class="mt-4 hidden rounded-2xl bg-rose-50 p-4 text-sm ring-1 ring-rose-200"></div>
-
         <div class="mt-5 flex flex-wrap items-center gap-2 rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-200">
           <span id="selected-count" class="mr-1 text-sm font-bold text-slate-700">선택 0명</span>
           <span class="mr-1 text-xs text-slate-400">선택한 신청자에게 적용 →</span>
@@ -326,27 +324,40 @@
       });
       return map;
     }
-    // 한 번호로 선착순/확정 자리를 2건 이상 잡은 건을 상단 배너로 알린다(대기 중복은 정상, 여기서 제외).
-    function renderDupPhoneAlert() {
-      const box = document.getElementById('dup-phone-alert');
-      if (!box) return;
-      const map = activeReservationsByPhone();
-      const dups = Object.keys(map).filter((p) => map[p].length >= 2);
-      if (!dups.length) { box.classList.add('hidden'); box.innerHTML = ''; return; }
-      box.classList.remove('hidden');
-      const lines = dups.map((phone) => {
-        const group = map[phone];
-        const name = group[0].applicant_name || '';
-        const dates = [...new Set(group.map((x) => classDateLabel(x.class_id)))].sort().join(', ');
-        return `<li class="mt-1"><span class="font-bold">${escapeHtml(name)}</span> ${escapeHtml(phone)} — ${escapeHtml(dates)} <span class="font-bold text-rose-700">(${group.length}건)</span></li>`;
-      }).join('');
-      box.innerHTML = `<p class="font-bold text-rose-700">⚠ 한 번호로 선착순·확정 자리를 2건 이상 잡음 ${dups.length}건 — 대기 중복은 정상이며, 이건 남길 1건 외 취소 처리하세요.</p><ul class="mt-1 list-none">${lines}</ul>`;
+    // 한 신청이 그 수업에서 몇 위(선착순)/몇 순위(대기)인지 — groupBadgeHtml과 동일 기준(확정·결제안내중 제외, 미확정에 신청순 순번).
+    function seatRankLabel(r) {
+      if (r.reservation_status === 'confirmed' || r.payment_status === 'paid') return '확정';
+      if (r.reservation_status === 'payment_target') return '결제 안내 중';
+      const cls = (adminData.classes || []).find((c) => c.class_id === r.class_id);
+      const capacity = cls ? Number(cls.capacity || 0) : 0;
+      const remaining = Math.max(capacity - Number((cls && cls.confirmed_count) || 0) - Number((cls && cls.payment_ready_count) || 0), 0);
+      let rank = -1;
+      let mine = null;
+      (adminData.reservations || []).filter((x) => x.class_id === r.class_id).forEach((x) => {
+        const isConfirmed = x.reservation_status === 'confirmed' || x.payment_status === 'paid';
+        const isDead = x.reservation_status === 'cancelled' || x.reservation_status === 'no_show';
+        const isPaymentTarget = x.reservation_status === 'payment_target';
+        if (!isConfirmed && !isDead && !isPaymentTarget) { rank += 1; if (x.id === r.id) mine = rank; }
+      });
+      if (mine === null) return '';
+      return mine < remaining ? `선착순 ${mine + 1}위` : `대기 ${mine - remaining + 1}순위`;
+    }
+    // '중복 N건' 배지 클릭 — 그 번호가 어느 날짜에 어떤 순위로 신청했는지 보여준다.
+    function showDupDetail(phone) {
+      const rows = (adminData.reservations || [])
+        .filter((r) => r.phone === phone && r.reservation_status !== 'cancelled' && r.reservation_status !== 'no_show')
+        .slice()
+        .sort((a, b) => String(classDateLabel(a.class_id)).localeCompare(String(classDateLabel(b.class_id))));
+      if (!rows.length) return;
+      const name = rows[0].applicant_name || '';
+      const lines = rows.map((r) => `· ${classDateLabel(r.class_id)} — ${seatRankLabel(r) || '신청'}`).join('\n');
+      window.alert(`${name} ${phone} 신청 내역\n\n${lines}`);
     }
 
     function dupBadgeHtml(group) {
       if (!group || group.length < 2) return '';
-      const dates = [...new Set(group.map((x) => classDateLabel(x.class_id)))].sort().join(', ');
-      return ` <span class="ml-1 rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-700" title="${escapeHtml('신청 ' + group.length + '건: ' + dates)}">중복 ${group.length}건</span>`;
+      const phone = group[0].phone || '';
+      return ` <button type="button" data-dup-phone="${escapeHtml(phone)}" class="ml-1 rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-700 underline decoration-dotted" title="클릭하면 신청 날짜·순위를 봅니다">중복 ${group.length}건</button>`;
     }
 
     function renderReservations(rows, classItem) {
@@ -563,7 +574,6 @@
       }
       const currentClass = adminData.classes.find((item) => item.class_id === selectedClassId());
       renderSummary(currentClass);
-      renderDupPhoneAlert();
       renderReservations(reservationsForSelectedClass(), currentClass);
       renderMessageStatus();
       renderClassManager(adminData.classes); // 선택 하이라이트 갱신 위해 표도 다시 렌더
@@ -815,6 +825,8 @@
       if (event.target.matches('[data-reservation-check]')) updateSelectedCount();
     });
     document.getElementById('reservation-rows').addEventListener('click', async (event) => {
+      const dupButton = event.target.closest('[data-dup-phone]');
+      if (dupButton) { showDupDetail(dupButton.dataset.dupPhone); return; }
       const memoButton = event.target.closest('[data-memo-edit]');
       if (!memoButton) return;
       const reservationId = memoButton.dataset.memoEdit;

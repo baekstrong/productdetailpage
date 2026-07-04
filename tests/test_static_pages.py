@@ -333,9 +333,10 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("reservation_status=in.(applied,payment_target,confirmed)", fn)  # 선착순 blocker 조회
         self.assertIn("willWaitlist", fn)                                              # 대기/선착순 판정
         self.assertIn("'waitlisted' : 'applied'", fn)                                  # 신청 시점 판정을 상태에 반영
-        # 어드민: 선착순/확정 중복만 집계(대기 제외) + 배너
-        self.assertIn("dup-phone-alert", admin)
+        # 어드민: 선착순/확정 중복만 집계(대기 제외), 배지 클릭 시 날짜·순위 상세
         self.assertIn("activeReservationsByPhone", admin)
+        self.assertIn("data-dup-phone", admin)
+        self.assertIn("seatRankLabel", admin)
         # 여석 안내 문자에 '원치 않으면 회신' 안내
         self.assertIn("회신", solapi)
 
