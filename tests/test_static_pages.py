@@ -339,6 +339,9 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("seatRankLabel", admin)
         # 여석 안내 문자에 '원치 않으면 회신' 안내
         self.assertIn("회신", solapi)
+        # 대기 접수 문자에 신청 시점 대기 순위 표기
+        self.assertIn("대기 {waitlist_rank}순위", solapi)
+        self.assertIn("waitlist_rank", fn)
 
         # 오픈 전(open_at 미래) 수업은 예약 거부
         self.assertIn("open_at", fn)

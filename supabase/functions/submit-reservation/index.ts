@@ -79,14 +79,16 @@ function isPastClassKst(classDate: string, startTime: string): boolean {
 }
 
 // 접수 문자 발송 — messageType은 자리 상황에 따라 reservation_success(정원 내) 또는 reservation_waitlist(만석).
-async function sendReceivedSms(reservationId: string, phone: string, classLabel: string, messageType: string) {
+async function sendReceivedSms(reservationId: string, phone: string, classLabel: string, messageType: string, waitlistRank?: number) {
   const { url, serviceKey } = getSupabaseAdmin();
   let result: Record<string, unknown> = { ok: false, error: 'send failed' };
   try {
+    const values: Record<string, string> = { class_date: classLabel };
+    if (waitlistRank && waitlistRank > 0) values.waitlist_rank = String(waitlistRank); // 대기 접수 문자에만 순위 채움
     const response = await fetch(`${url}/functions/v1/solapi-reservations`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', apikey: serviceKey, authorization: `Bearer ${serviceKey}` },
-      body: JSON.stringify({ messageType, phone, values: { class_date: classLabel } }),
+      body: JSON.stringify({ messageType, phone, values }),
     });
     result = await response.json().catch(() => ({ ok: false, error: 'invalid solapi response' }));
   } catch (error) {
@@ -191,7 +193,9 @@ serve(async (req) => {
 
     // 접수 확인 문자(베스트 에포트 — 실패해도 신청 자체는 성공으로 응답).
     const classLabel = formatSchedule(String(classRow.class_date), String(classRow.start_time), String(classRow.end_time));
-    if (reservation && reservation.id) await sendReceivedSms(String(reservation.id), phone, classLabel, messageType);
+    // 대기로 접수된 경우 신청 시점 순위(= 본인 제외 활성 - 정원 + 1)를 함께 넘긴다.
+    const waitlistRank = willWaitlist ? (activeCount - capacity + 1) : undefined;
+    if (reservation && reservation.id) await sendReceivedSms(String(reservation.id), phone, classLabel, messageType, waitlistRank);
 
     return jsonResponse({ ok: true });
   } catch (error) {
