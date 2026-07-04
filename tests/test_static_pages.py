@@ -328,15 +328,16 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("reservations_active_unique", schema)
         self.assertNotIn("anon can create reservation", schema)
 
-        # 중복 차단은 '수업별'이 아니라 '번호 전체' 기준 — 한 번호당 한 수업만.
-        self.assertIn("phone=eq.${encodeURIComponent(phone)}&reservation_status=not.in.(cancelled,no_show)&select=id", fn)
-        self.assertNotIn("class_id=eq.${encodeURIComponent(classId)}&phone=eq.", fn)
-        self.assertIn("한 번호로는 한 수업만 신청할 수 있어요", fn)
-        self.assertIn("on public.reservations (phone)", schema)
-        self.assertNotIn("reservations (class_id, phone)", schema)
-        # 어드민: 번호별 중복 신청 배너/집계
+        # 중복 정책: 같은 수업은 (class_id,phone) 유니크로 차단, 다른 날짜는 '선착순 자리'만 앱에서 차단(대기는 허용).
+        self.assertIn("reservations (class_id, phone)", schema)
+        self.assertIn("reservation_status=in.(applied,payment_target,confirmed)", fn)  # 선착순 blocker 조회
+        self.assertIn("willWaitlist", fn)                                              # 대기/선착순 판정
+        self.assertIn("'waitlisted' : 'applied'", fn)                                  # 신청 시점 판정을 상태에 반영
+        # 어드민: 선착순/확정 중복만 집계(대기 제외) + 배너
         self.assertIn("dup-phone-alert", admin)
         self.assertIn("activeReservationsByPhone", admin)
+        # 여석 안내 문자에 '원치 않으면 회신' 안내
+        self.assertIn("회신", solapi)
 
         # 오픈 전(open_at 미래) 수업은 예약 거부
         self.assertIn("open_at", fn)

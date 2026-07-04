@@ -99,13 +99,10 @@ using (
 -- 예약 신청은 submit-reservation Edge Function(service_role) 경유만 허용한다.
 -- (과거의 anon 직접 insert 정책은 제거됨 — 검증·중복차단·접수 문자를 서버에서 일원화)
 
--- 한 번호의 활성 신청(취소/불참 제외)은 날짜와 무관하게 1건만 — 중복 신청 DB 차원 차단.
--- (운영 DB 마이그레이션: 기존 (class_id, phone) 인덱스를 교체하려면 아래 순서로 실행)
---   1) 기존 중복부터 정리: 남길 1건 외 나머지를 reservation_status='cancelled'로. (admin.html의 중복 배너로 대상 확인)
---   2) drop index if exists public.reservations_active_unique;
---   3) 아래 create 문 실행. (중복이 남아 있으면 create가 실패하므로 1)을 먼저 끝낼 것)
+-- 같은 수업에 같은 번호의 활성 신청(취소/불참 제외)은 1건만 — 같은 수업 중복 신청 DB 차원 차단.
+-- (다른 날짜의 '대기' 중복은 허용, '선착순 자리' 중복만 submit-reservation이 앱 레벨에서 차단한다.)
 create unique index if not exists reservations_active_unique
-  on public.reservations (phone)
+  on public.reservations (class_id, phone)
   where reservation_status not in ('cancelled', 'no_show');
 
 -- Direct reservation reads are blocked for anon; admin access should go through Edge Functions with service role.

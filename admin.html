@@ -314,18 +314,19 @@
       const c = (adminData.classes || []).find((x) => x.class_id === classId);
       return (c && c.class_date) || classId;
     }
-    // 취소/불참 제외 활성 신청을 번호별로 묶는다(전체 수업 기준). 한 번호에 2건 이상이면 중복.
+    // '선착순 자리 확보(applied/payment_target/confirmed)' 신청만 번호별로 묶는다(전체 수업 기준).
+    // 대기(waitlisted) 중복은 정상 허용이므로 경고 대상 아님. 2건 이상이면 자리 이중 확보 = 정리 필요.
     function activeReservationsByPhone() {
       const map = {};
       (adminData.reservations || []).forEach((r) => {
-        if (r.reservation_status === 'cancelled' || r.reservation_status === 'no_show') return;
+        if (['cancelled', 'no_show', 'waitlisted'].includes(r.reservation_status)) return;
         const key = r.phone || '';
         if (!key) return;
         (map[key] = map[key] || []).push(r);
       });
       return map;
     }
-    // 여러 날짜에 걸쳐 한 번호로 신청한 건을 상단 배너로 알린다(남길 1건 외 취소 유도).
+    // 한 번호로 선착순/확정 자리를 2건 이상 잡은 건을 상단 배너로 알린다(대기 중복은 정상, 여기서 제외).
     function renderDupPhoneAlert() {
       const box = document.getElementById('dup-phone-alert');
       if (!box) return;
@@ -339,7 +340,7 @@
         const dates = [...new Set(group.map((x) => classDateLabel(x.class_id)))].sort().join(', ');
         return `<li class="mt-1"><span class="font-bold">${escapeHtml(name)}</span> ${escapeHtml(phone)} — ${escapeHtml(dates)} <span class="font-bold text-rose-700">(${group.length}건)</span></li>`;
       }).join('');
-      box.innerHTML = `<p class="font-bold text-rose-700">⚠ 한 번호로 여러 건 신청 ${dups.length}건 — 한 번호당 한 수업 원칙입니다. 남길 1건 외에는 취소 처리하세요.</p><ul class="mt-1 list-none">${lines}</ul>`;
+      box.innerHTML = `<p class="font-bold text-rose-700">⚠ 한 번호로 선착순·확정 자리를 2건 이상 잡음 ${dups.length}건 — 대기 중복은 정상이며, 이건 남길 1건 외 취소 처리하세요.</p><ul class="mt-1 list-none">${lines}</ul>`;
     }
 
     function dupBadgeHtml(group) {

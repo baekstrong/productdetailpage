@@ -63,10 +63,11 @@ const templates: Record<MessageType, string> = {
 수업 일정: {class_date}
 장소: {place}(https://naver.me/xiqDtNuY)
 
-아래 링크에서 결제를 완료하시면 자리가 확정됩니다
+수강을 원하시면 아래 링크에서 결제를 완료해 주세요(결제 시 자리 확정)
 {payment_url}
 
 안내 문자를 받은 뒤 24시간 이내에 결제해 주세요
+수강을 원하지 않으시면 이 문자로 회신 주시면 대기 명단에서 정리해 드리겠습니다
 여석 안내는 순차적으로 발송되며 결제 완료 순으로 확정됩니다`,
   // 결제 완료 문자
   payment_completed: `케틀벨 원데이 수업 결제가 완료되었습니다

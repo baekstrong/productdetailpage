@@ -8,8 +8,10 @@ const corsHeaders = {
   'access-control-allow-headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// 한 번호로는 한 수업만 신청 가능(날짜 무관). 중복 차단 응답 문구를 한 곳에서 관리.
-const DUPLICATE_MESSAGE = '이미 신청하신 수업이 있습니다. 한 번호로는 한 수업만 신청할 수 있어요. 결제 안내 문자를 기다려 주세요.';
+// 같은 수업 재신청 차단 문구.
+const SAME_CLASS_MESSAGE = '이미 이 수업에 신청되어 있습니다. 결제 안내 문자를 기다려 주세요.';
+// 다른 수업의 '선착순 자리'는 한 번호당 1건만 — 대기 신청은 날짜별로 따로 허용.
+const SEAT_DUP_MESSAGE = '이미 신청하신 수업이 있어, 다른 수업의 선착순 자리는 신청할 수 없습니다. 자리가 찬 수업은 대기로 신청하실 수 있어요.';
 
 function jsonResponse(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), { status, headers: { ...corsHeaders, 'content-type': 'application/json' } });
@@ -150,12 +152,24 @@ serve(async (req) => {
       return jsonResponse({ ok: false, error: '이미 종료된 수업입니다.' }, 400);
     }
 
-    // 같은 번호로 활성 신청(취소/불참 제외)이 이미 있으면 중복 차단 — 날짜와 무관하게 한 번호당 한 수업만.
-    const dupes = await supabaseFetch(
-      `reservations?phone=eq.${encodeURIComponent(phone)}&reservation_status=not.in.(cancelled,no_show)&select=id`
+    // 이번 신청이 '선착순 자리'인지 '대기'인지 먼저 판정 — 그 수업의 현재 활성 신청 수(본인 제외) 기준.
+    const activeRows = await supabaseFetch(
+      `reservations?class_id=eq.${encodeURIComponent(classId)}&reservation_status=not.in.(cancelled,no_show)&select=id`
     );
-    if (Array.isArray(dupes) && dupes.length > 0) {
-      return jsonResponse({ ok: false, error: DUPLICATE_MESSAGE }, 409);
+    const activeCount = Array.isArray(activeRows) ? activeRows.length : 0;
+    const capacity = Number(classRow.capacity || 0);
+    const willWaitlist = capacity > 0 && activeCount >= capacity; // 본인을 넣으면 정원 초과 → 대기
+
+    // 선착순 자리로 들어가는 신청만 '번호당 선착순 1건' 원칙 적용.
+    // 이미 대기가 아닌 활성 신청(applied/payment_target/confirmed)이 있으면 차단. 대기 신청은 날짜별로 무제한 허용.
+    if (!willWaitlist) {
+      const blockers = await supabaseFetch(
+        `reservations?phone=eq.${encodeURIComponent(phone)}&reservation_status=in.(applied,payment_target,confirmed)&select=id,class_id`
+      );
+      if (Array.isArray(blockers) && blockers.length > 0) {
+        const sameClass = blockers.some((b) => String(b.class_id) === classId);
+        return jsonResponse({ ok: false, error: sameClass ? SAME_CLASS_MESSAGE : SEAT_DUP_MESSAGE }, 409);
+      }
     }
 
     const created = await supabaseFetch('reservations', {
@@ -167,17 +181,13 @@ serve(async (req) => {
         phone,
         kettlebell_experience: experience || null,
         reason: reason || null,
+        reservation_status: willWaitlist ? 'waitlisted' : 'applied', // 신청 시점 판정을 상태에 반영
       }),
     });
     const reservation = Array.isArray(created) ? created[0] : created;
 
-    // 신청 시점의 자리 상황으로 접수 문자 분기 — 본인 포함 활성 신청 수가 정원 이내면 선착순 성공, 초과면 대기.
-    const activeRows = await supabaseFetch(
-      `reservations?class_id=eq.${encodeURIComponent(classId)}&reservation_status=not.in.(cancelled,no_show)&select=id`
-    );
-    const activeCount = Array.isArray(activeRows) ? activeRows.length : 0;
-    const capacity = Number(classRow.capacity || 0);
-    const messageType = capacity > 0 && activeCount > capacity ? 'reservation_waitlist' : 'reservation_success';
+    // 접수 문자 분기 — 위에서 판정한 선착순/대기 그대로.
+    const messageType = willWaitlist ? 'reservation_waitlist' : 'reservation_success';
 
     // 접수 확인 문자(베스트 에포트 — 실패해도 신청 자체는 성공으로 응답).
     const classLabel = formatSchedule(String(classRow.class_date), String(classRow.start_time), String(classRow.end_time));
@@ -188,7 +198,7 @@ serve(async (req) => {
     const message = error instanceof Error ? error.message : 'unknown error';
     // 유니크 인덱스 위반(동시 신청 레이스)은 중복 신청과 같은 한글 안내로 응답.
     if (message.includes('23505') || message.includes('reservations_active_unique')) {
-      return jsonResponse({ ok: false, error: DUPLICATE_MESSAGE }, 409);
+      return jsonResponse({ ok: false, error: SAME_CLASS_MESSAGE }, 409);
     }
     return jsonResponse({ ok: false, error: message }, 500);
   }
