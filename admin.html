@@ -613,17 +613,23 @@
       const pad2 = (n) => (n < 10 ? '0' : '') + n;
       const startDow = new Date(year, month, 1).getDay();
       const days = new Date(year, month + 1, 0).getDate();
+      const now = new Date();
       const cells = [];
       for (let i = 0; i < startDow; i += 1) cells.push('<div class="min-h-[84px] rounded-lg bg-white/40"></div>');
       for (let d = 1; d <= days; d += 1) {
         const dateStr = `${year}-${pad2(month + 1)}-${pad2(d)}`;
         const items = (byDate[dateStr] || []).slice().sort((a, b) => (String(a.start_time) < String(b.start_time) ? -1 : 1));
         const dow = new Date(year, month, d).getDay();
+        const isToday = year === now.getFullYear() && month === now.getMonth() && d === now.getDate();
         const hol = (typeof window.holidayName === 'function') ? window.holidayName(dateStr) : '';
         const numColor = (hol || dow === 0) ? 'text-red-500' : 'text-slate-500';
+        const numHtml = isToday
+          ? `<span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-[11px] font-extrabold text-white" title="오늘">${d}</span>`
+          : `<div class="text-[11px] font-bold ${numColor}">${d}</div>`;
         const holLabel = hol ? `<div class="text-[9px] leading-tight text-red-500 truncate">${hol}</div>` : '';
-        cells.push(`<div data-cal-date="${dateStr}" class="min-h-[84px] cursor-pointer overflow-hidden rounded-lg bg-white p-1 ring-1 ring-slate-200 hover:ring-blue-300">`
-          + `<div class="flex items-start justify-between gap-1"><div class="text-[11px] font-bold ${numColor}">${d}</div>${holLabel}</div>`
+        const ringClass = isToday ? 'ring-2 ring-blue-500' : 'ring-1 ring-slate-200';
+        cells.push(`<div data-cal-date="${dateStr}" class="min-h-[84px] cursor-pointer overflow-hidden rounded-lg bg-white p-1 ${ringClass} hover:ring-blue-300">`
+          + `<div class="flex items-start justify-between gap-1">${numHtml}${holLabel}</div>`
           + `<div class="mt-0.5 flex flex-col gap-0.5">${items.map(adminCalBadge).join('')}</div></div>`);
       }
       while (cells.length % 7 !== 0) cells.push('<div class="min-h-[84px] rounded-lg bg-white/40"></div>');

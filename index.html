@@ -791,13 +791,13 @@
         var isRed = !!hol || dow === 0;
         var numColor = isRed ? 'text-red-500' : (items.length ? 'text-ink-900' : 'text-ink-400');
         var head = isToday
-          ? '<span class="inline-flex h-7 w-7 items-center justify-center rounded-full bg-red-500 text-xs font-extrabold text-white">' + d + '</span>'
+          ? '<span class="inline-flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-xs font-extrabold text-white" title="오늘">' + d + '</span>'
           : '<span class="text-sm font-bold ' + numColor + '">' + d + '</span>';
         var holLabel = hol ? '<div class="text-[9px] leading-tight text-red-500 truncate">' + hol + '</div>' : '';
         if (!items.length) {
-          return '<div class="calendar-day rounded-xl bg-white ring-1 ring-ink-200/80 p-2 text-right overflow-hidden' + (isToday ? ' ring-2 ring-red-400' : '') + '">' + head + holLabel + '</div>';
+          return '<div class="calendar-day rounded-xl bg-white ring-1 ring-ink-200/80 p-2 text-right overflow-hidden' + (isToday ? ' ring-2 ring-blue-500' : '') + '">' + head + holLabel + '</div>';
         }
-        return '<div class="calendar-day rounded-xl bg-white ring-1 ring-ink-200/80 p-1.5 text-left flex flex-col gap-1 overflow-hidden' + (isToday ? ' ring-2 ring-red-400' : '') + '">'
+        return '<div class="calendar-day rounded-xl bg-white ring-1 ring-ink-200/80 p-1.5 text-left flex flex-col gap-1 overflow-hidden' + (isToday ? ' ring-2 ring-blue-500' : '') + '">'
           + '<div class="text-right leading-none">' + head + holLabel + '</div>' + items.map(classAnchorHtml).join('') + '</div>';
       }
 

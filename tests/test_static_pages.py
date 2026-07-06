@@ -179,6 +179,8 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("renderAdminCalendar", html)
         self.assertIn("data-cal-date", html)
         self.assertIn("data-cal-class", html)
+        # 오늘 날짜 표기(파란 pill)
+        self.assertIn("isToday", html)
         # 등록/수정 모달
         self.assertIn('id="class-modal"', html)
         self.assertIn("openClassModal", html)
