@@ -109,6 +109,7 @@
           <button type="button" data-bulk-action="payment-complete" class="rounded-lg bg-emerald-100 px-3 py-2 text-sm font-bold text-emerald-700">결제 완료 처리</button>
           <button type="button" data-bulk-action="waitlist" class="rounded-lg bg-blue-100 px-3 py-2 text-sm font-bold text-blue-700">대기 처리</button>
           <button type="button" data-bulk-action="seat-opened" class="rounded-lg bg-sky-100 px-3 py-2 text-sm font-bold text-sky-700">여석 안내</button>
+          <button type="button" data-bulk-action="seat-secured" class="rounded-lg bg-teal-100 px-3 py-2 text-sm font-bold text-teal-700">선착순 확보 (결제 링크 X)</button>
           <button type="button" data-bulk-action="payment-expired" class="rounded-lg bg-amber-100 px-3 py-2 text-sm font-bold text-amber-700">미결제 마감</button>
           <button type="button" data-bulk-action="cancel" class="rounded-lg bg-slate-200 px-3 py-2 text-sm font-bold text-slate-700">취소 처리</button>
         </div>
@@ -267,7 +268,7 @@
       return adminData.reservations.filter((row) => row.class_id === classId);
     }
 
-    function groupBadgeHtml(r, liveRank, remaining) {
+    function groupBadgeHtml(r, liveRank, remaining, seatNo) {
       // 취소·불참을 먼저 판정한다(결제 완료 후 취소된 건이 '확정'으로 잘못 표시되지 않도록).
       if (r.reservation_status === 'cancelled' || r.reservation_status === 'no_show') {
         return '<span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-500">취소</span>';
@@ -276,7 +277,12 @@
         return '<span class="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700">확정</span>';
       }
       if (r.reservation_status === 'payment_target') {
-        return '<span class="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-bold text-orange-700">결제 안내 중</span>';
+        // 결제 링크를 보낸 대상(sent)은 '결제 안내 중', 링크 없이 자리만 확보(pending)는 '선착순 N'.
+        if (r.payment_status === 'sent') {
+          return '<span class="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-bold text-orange-700">결제 안내 중</span>';
+        }
+        const no = seatNo && seatNo[r.id];
+        return `<span class="rounded-full bg-teal-100 px-2 py-0.5 text-xs font-bold text-teal-700">선착순 확보${no ? ' ' + no : ''}</span>`;
       }
       const rank = liveRank[r.id];
       if (rank === undefined) return '';
@@ -327,7 +333,18 @@
     // 한 신청이 그 수업에서 몇 위(선착순)/몇 순위(대기)인지 — groupBadgeHtml과 동일 기준(확정·결제안내중 제외, 미확정에 신청순 순번).
     function seatRankLabel(r) {
       if (r.reservation_status === 'confirmed' || r.payment_status === 'paid') return '확정';
-      if (r.reservation_status === 'payment_target') return '결제 안내 중';
+      if (r.reservation_status === 'payment_target') {
+        if (r.payment_status === 'sent') return '결제 안내 중';
+        // 선착순 확보(결제 전): 신청순 좌석번호 계산(확정·결제안내대상 = 자리 점유).
+        let s = 0;
+        let mineSeat = null;
+        (adminData.reservations || []).filter((x) => x.class_id === r.class_id).forEach((x) => {
+          const isDead = x.reservation_status === 'cancelled' || x.reservation_status === 'no_show';
+          const holdsSeat = x.reservation_status === 'confirmed' || x.payment_status === 'paid' || x.reservation_status === 'payment_target';
+          if (!isDead && holdsSeat) { s += 1; if (x.id === r.id) mineSeat = s; }
+        });
+        return mineSeat ? `선착순 확보 ${mineSeat}` : '선착순 확보';
+      }
       const cls = (adminData.classes || []).find((c) => c.class_id === r.class_id);
       const capacity = cls ? Number(cls.capacity || 0) : 0;
       const remaining = Math.max(capacity - Number((cls && cls.confirmed_count) || 0) - Number((cls && cls.payment_ready_count) || 0), 0);
@@ -374,11 +391,15 @@
           : '';
       }
       const liveRank = {};
+      const seatNo = {};
       let rank = -1;
+      let seat = 0;
       rows.forEach((r) => {
         const isConfirmed = r.reservation_status === 'confirmed' || r.payment_status === 'paid';
         const isDead = r.reservation_status === 'cancelled' || r.reservation_status === 'no_show';
         const isPaymentTarget = r.reservation_status === 'payment_target';
+        // 선착순 좌석번호(신청순): 확정·결제안내대상(자리 점유)에게 1..N 부여 — '선착순 확보' 배지에 사용.
+        if (!isDead && (isConfirmed || isPaymentTarget)) { seat += 1; seatNo[r.id] = seat; }
         if (!isConfirmed && !isDead && !isPaymentTarget) { rank += 1; liveRank[r.id] = rank; }
       });
       if (!rows.length) {
@@ -390,7 +411,7 @@
         <tr class="border-b border-slate-100 align-top">
           <td class="p-3"><input type="checkbox" data-reservation-check value="${escapeHtml(r.id)}" aria-label="신청자 선택" /></td>
           <td class="p-3">${index + 1}</td>
-          <td class="p-3">${groupBadgeHtml(r, liveRank, remaining)}</td>
+          <td class="p-3">${groupBadgeHtml(r, liveRank, remaining, seatNo)}</td>
           <td class="p-3 font-bold">${escapeHtml(r.applicant_name)}</td>
           <td class="p-3">${escapeHtml(r.phone)}${dupBadgeHtml(activeByPhone[r.phone])}</td>
           <td class="p-3">${escapeHtml(r.kettlebell_experience || '')}</td>
@@ -410,6 +431,7 @@
       { label: '예약 신청 완료 문자', type: ['reservation_success', 'reservation_waitlist', 'reservation_received'], resendable: false },
       { label: '결제 안내 문자', type: 'payment 안내' },
       { label: '여석 안내 문자', type: 'seat_opened' },
+      { label: '자리 확보 문자', type: 'seat_secured' },
       { label: '결제 완료 문자', type: 'payment_completed' },
       { label: '수업 전 리마인드 문자', type: 'class_reminder' },
       { label: '수업 후 복습 자료 문자', type: 'review_material' },
@@ -746,6 +768,8 @@
     const BULK_ACTION_UPDATES = {
       'payment-target': { reservation_status: 'payment_target', payment_status: 'sent' },
       'seat-opened': { reservation_status: 'payment_target', payment_status: 'sent' },
+      // 결제 전 자리 확보: 자리는 점유(payment_target)하되 결제 시계는 안 돌림(pending 유지) — 결제 링크는 D-7에 별도 발송.
+      'seat-secured': { reservation_status: 'payment_target', payment_status: 'pending' },
       'payment-complete': { reservation_status: 'confirmed', payment_status: 'paid' },
       waitlist: { reservation_status: 'waitlisted' },
       'payment-expired': { reservation_status: 'cancelled', payment_status: 'expired' },
@@ -761,9 +785,10 @@
       if (action === 'cancel' && !window.confirm(`선택한 ${ids.length}명을 취소 처리할까요?`)) return;
       if (action === 'payment-expired' && !window.confirm(`선택한 ${ids.length}명을 미결제 마감 처리하고 안내 문자를 보낼까요?`)) return;
       if (action === 'seat-opened' && !window.confirm(`선택한 ${ids.length}명에게 여석 안내 문자를 보내고 결제 안내 대상으로 전환할까요?`)) return;
+      if (action === 'seat-secured' && !window.confirm(`선택한 ${ids.length}명에게 결제 링크 없이 '자리 확보' 안내 문자를 보낼까요?\n(자리는 즉시 점유되며, 결제 링크는 수업 1주일 전에 '결제 안내 대상으로 지정'으로 따로 보냅니다.)`)) return;
       message.textContent = `선택한 ${ids.length}명을 처리하는 중입니다.`;
       try {
-        const notify = action === 'seat-opened' ? 'seat_opened' : undefined;
+        const notify = action === 'seat-opened' ? 'seat_opened' : (action === 'seat-secured' ? 'seat_secured' : undefined);
         for (const reservationId of ids) {
           await callAdminApi('updateReservation', { reservationId, updates, notify });
         }

@@ -431,7 +431,7 @@ async function cancelScheduledFollowups(reservationId: string) {
 }
 
 // 재발송 가능한 자동 문자 종류 화이트리스트.
-const RESENDABLE_TYPES = new Set(['reservation_received', 'payment 안내', 'seat_opened', 'payment_completed', 'class_reminder', 'review_material', 'review_video', 'reservation_cancelled']);
+const RESENDABLE_TYPES = new Set(['reservation_received', 'payment 안내', 'seat_opened', 'seat_secured', 'payment_completed', 'class_reminder', 'review_material', 'review_video', 'reservation_cancelled']);
 
 // 현황판에서 미발송자에게 해당 종류 문자를 재발송한다.
 async function resendMessage(classId: string, messageType: string, reservationIds: string[], videoUrl?: string) {
@@ -495,8 +495,13 @@ async function updateReservation(reservationId: string, updates: Record<string, 
       await cancelScheduledFollowups(String(updated.id));
     } else if (updated.reservation_status === 'payment_target' || updated.payment_status === 'sent') {
       const info = await classInfo(String(updated.class_id || ''));
-      const messageType = notifyOverride === 'seat_opened' ? 'seat_opened' : 'payment 안내';
-      await notify(updated, messageType, { class_date: info.label, place: info.place, payment_url: PAYMENT_LINK });
+      // 결제 전 자리 확보(seat_secured)는 결제 링크 없이 안내한다. 그 외엔 결제 링크 포함.
+      if (notifyOverride === 'seat_secured') {
+        await notify(updated, 'seat_secured', { class_date: info.label, place: info.place });
+      } else {
+        const messageType = notifyOverride === 'seat_opened' ? 'seat_opened' : 'payment 안내';
+        await notify(updated, messageType, { class_date: info.label, place: info.place, payment_url: PAYMENT_LINK });
+      }
     } else if (updated.reservation_status === 'confirmed' || updated.payment_status === 'paid') {
       const info = await classInfo(String(updated.class_id || ''));
       await notify(updated, 'payment_completed', { class_date: info.label, place: info.place });

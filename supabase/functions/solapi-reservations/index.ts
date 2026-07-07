@@ -11,6 +11,7 @@ type MessageType =
   | 'reservation_waitlist'
   | 'payment 안내'
   | 'seat_opened'
+  | 'seat_secured'
   | 'payment_completed'
   | 'payment_expired'
   | 'class_reminder'
@@ -71,6 +72,17 @@ const templates: Record<MessageType, string> = {
 안내 문자를 받은 뒤 24시간 이내에 결제해 주세요
 수강을 원하지 않으시면 이 문자로 회신 주시면 대기 명단에서 정리해 드리겠습니다
 여석 안내는 순차적으로 발송되며 결제 완료 순으로 확정됩니다`,
+  // 결제 전 자리 확보 문자 — 수업이 아직 한참 남아 결제 링크를 주지 않고 자리만 확보 안내(결제 링크는 D-7에 별도 발송)
+  seat_secured: `케틀벨 원데이 수업 자리 안내드립니다
+
+앞선 신청자 취소로 여석이 생겨 {class_date} 수업에 자리를 확보해 드렸습니다
+장소: {place}(https://naver.me/xiqDtNuY)
+
+결제 링크는 수업 약 1주일 전에 문자로 보내드립니다
+문자의 링크에서 결제까지 완료해야 수업 자리가 최종 확정됩니다
+
+지금 따로 하실 일은 없으며 일정에 참고만 해 주세요
+수강이 어려우시면 이 문자로 회신 주시면 자리를 정리해 드리겠습니다`,
   // 결제 완료 문자
   payment_completed: `케틀벨 원데이 수업 결제가 완료되었습니다
 
