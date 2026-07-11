@@ -450,11 +450,14 @@
     // 예약 발송 시각 "2026-06-26T18:00:00+09:00" → " · 6/26 18:00 발송 예정 / 예약시각 지남".
     // ⚠️ Solapi가 예약시각에 실제 발송해도 우리 DB로 콜백이 없어 현황은 계속 '예약'으로 남는다.
     //    예약시각이 지났으면 (특이사항 없는 한) 이미 발송된 것 — 그걸 운영자가 알 수 있게 표기.
+    // DB(timestamptz)가 UTC로 돌려주므로 문자열 그대로 쓰지 말고 KST(+9h)로 변환해 표기한다.
     function schedLabel(iso) {
-      const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
-      if (!m) return '';
-      const when = `${+m[2]}/${+m[3]} ${m[4]}:${m[5]}`;
-      const past = new Date(iso).getTime() < Date.now();
+      const t = new Date(iso || '');
+      if (isNaN(t.getTime())) return '';
+      const k = new Date(t.getTime() + 9 * 60 * 60 * 1000);
+      const pad = (n) => String(n).padStart(2, '0');
+      const when = `${k.getUTCMonth() + 1}/${k.getUTCDate()} ${pad(k.getUTCHours())}:${pad(k.getUTCMinutes())}`;
+      const past = t.getTime() < Date.now();
       return past
         ? ` <span class="font-normal text-slate-500">· ${when} 예약시각 지남(발송 완료 추정)</span>`
         : ` <span class="font-normal text-slate-500">· ${when} 발송 예정</span>`;
