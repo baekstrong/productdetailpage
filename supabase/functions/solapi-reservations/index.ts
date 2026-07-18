@@ -288,9 +288,15 @@ serve(async (req) => {
     const values = body.values || {};
 
     if (!templates[messageType]) return jsonResponse({ error: 'unknown message type' }, 400);
-    if (!phone) return jsonResponse({ error: 'phone is required' }, 400);
 
-    const text = fillTemplate(templates[messageType], values);
+    // 관리자가 발송 전 확인 화면에서 수정한 본문(overrideText)이 있으면 템플릿 대신 그대로 발송한다.
+    const overrideText = typeof body.overrideText === 'string' && body.overrideText.trim() ? String(body.overrideText) : '';
+    const text = overrideText || fillTemplate(templates[messageType], values);
+
+    // preview: 발송 없이 채워진 본문만 반환 — 관리자 발송 전 확인/수정용.
+    if (body.preview) return jsonResponse({ ok: true, preview: true, messageType, text });
+
+    if (!phone) return jsonResponse({ error: 'phone is required' }, 400);
     const result = await sendSolapi(phone, text, scheduledAt);
     return jsonResponse({ ...result, messageType, phoneMasked: maskPhone(phone) });
   } catch (error) {

@@ -432,6 +432,29 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("add column if not exists payment_reminder_sent_at", schema)
 
 
+    def test_sms_preview_confirm_and_edit_before_send(self):
+        admin = read_page("admin.html")
+        admin_fn = read_page("supabase/functions/admin-reservations/index.ts")
+        solapi = read_page("supabase/functions/solapi-reservations/index.ts")
+
+        # 관리자: 발송 전 확인/수정 모달 — 실제 본문을 보여주고 확인해야 발송
+        self.assertIn('id="sms-modal"', admin)
+        self.assertIn('id="sms-modal-text"', admin)
+        self.assertIn("confirmSmsBeforeSend", admin)
+        self.assertIn("이 내용을 문자로 보내시겠습니까", admin)
+        self.assertIn("이 내용으로 발송", admin)
+        self.assertIn("messageText", admin)
+
+        # 서버: 미리보기 액션 + 수정 본문(override) 전달
+        self.assertIn("action === 'previewMessage'", admin_fn)
+        self.assertIn("previewMessage", admin_fn)
+        self.assertIn("messageText", admin_fn)
+        self.assertIn("overrideText", admin_fn)
+
+        # 문자 함수: preview는 발송 없이 본문만 반환, overrideText는 템플릿 대신 발송
+        self.assertIn("body.preview", solapi)
+        self.assertIn("overrideText", solapi)
+
     def test_payment_reminder_function(self):
         fn = read_page("supabase/functions/payment-reminder/index.ts")
         self.assertIn("SUPABASE_SERVICE_ROLE_KEY", fn)
