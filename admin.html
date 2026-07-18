@@ -141,8 +141,13 @@
       </section>
 
       <section class="rounded-3xl bg-white p-6 text-slate-900">
-        <h2 class="text-xl font-extrabold">문자 발송 현황</h2>
-        <p class="mt-2 text-sm text-slate-500">선택한 일정 기준으로 단계별 안내 문자의 발송/예약 여부를 보여줍니다. 일부가 누락되면 제외 명단과 재발송 버튼이 나타납니다.</p>
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <h2 class="text-xl font-extrabold">문자 발송 현황</h2>
+            <p class="mt-2 text-sm text-slate-500">선택한 일정 기준으로 단계별 안내 문자의 발송/예약 여부를 보여줍니다. 일부가 누락되면 제외 명단과 재발송 버튼이 나타납니다.</p>
+          </div>
+          <button id="template-edit-button" type="button" class="shrink-0 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-violet-700" title="자동 발송되는 문자의 기본 내용을 영구 수정합니다">📝 문자 템플릿 수정</button>
+        </div>
         <div id="message-status-rows" class="mt-4"></div>
       </section>
 
@@ -198,6 +203,25 @@
             <button id="sms-modal-send" type="button" class="rounded-xl bg-orange-500 px-5 py-3 font-bold text-white">이 내용으로 발송</button>
             <button id="sms-modal-cancel" type="button" class="rounded-xl bg-slate-100 px-5 py-3 font-bold text-slate-700">취소</button>
           </div>
+        </div>
+      </div>
+
+      <div id="template-modal" class="hidden fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+        <div data-template-modal-close class="absolute inset-0 bg-slate-900/50"></div>
+        <div role="dialog" aria-modal="true" class="relative w-full sm:max-w-lg max-h-[92vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl bg-white p-6 text-slate-900 shadow-2xl">
+          <div class="flex items-start justify-between">
+            <h3 class="text-xl font-extrabold">문자 템플릿 수정</h3>
+            <button type="button" data-template-modal-close class="text-2xl text-slate-400 hover:text-slate-700">✕</button>
+          </div>
+          <label class="mt-4 grid gap-1 text-xs font-bold text-slate-600">문자 종류
+            <select id="template-type" class="rounded-xl border border-slate-300 px-3 py-2.5 font-normal"></select></label>
+          <textarea id="template-body" rows="14" class="mt-3 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm leading-relaxed"></textarea>
+          <p class="mt-2 text-xs text-slate-500">{class_date}, {place}, {payment_url}, {video_url}, {waitlist_rank} 같은 중괄호 표시는 발송할 때 실제 값으로 자동 치환되니 지우지 않도록 주의하세요. 저장하면 이후 발송부터 계속 적용됩니다.</p>
+          <div class="mt-4 flex flex-wrap items-center gap-2">
+            <button id="template-save" type="button" class="rounded-xl bg-orange-500 px-5 py-3 font-bold text-white">저장</button>
+            <button id="template-restore" type="button" class="rounded-xl bg-slate-100 px-5 py-3 font-bold text-slate-700">기본값 복원</button>
+          </div>
+          <p id="template-modal-message" class="mt-3 text-sm text-slate-500"></p>
         </div>
       </div>
     </section>
@@ -572,8 +596,76 @@
       'payment 안내': '결제 안내 문자', seat_opened: '여석 안내 문자(결제 링크 O)', seat_secured: '자리 확보 문자(결제 링크 X)',
       payment_completed: '결제 완료 문자', payment_expired: '미결제 마감 문자', reservation_cancelled: '예약 취소 안내 문자',
       class_reminder: '수업 전 리마인드 문자', review_material: '수업 후 복습 자료 문자', review_video: '복습 영상 안내 문자',
-      reservation_received: '예약 신청 완료 문자', custom: '직접 작성 문자'
+      reservation_received: '예약 신청 완료 문자', custom: '직접 작성 문자',
+      reservation_success: '접수 문자(정원 내)', reservation_waitlist: '접수 문자(대기)', admin_payment_reminder: '운영자 결제 리마인더(D-7)'
     };
+
+    // solapi-reservations 직접 호출(관리자 비밀번호 인증) — 템플릿 조회/수정용.
+    async function callSolapiApi(payload) {
+      if (!SUPABASE_URL || !SUPABASE_ANON_KEY) throw new Error('서버 설정이 없습니다.');
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/solapi-reservations`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', apikey: SUPABASE_ANON_KEY, authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+        body: JSON.stringify({ password: adminPassword, ...payload })
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result.ok === false) throw new Error(result.error || '문자 API 호출 실패');
+      return result;
+    }
+
+    // --- 문자 템플릿 수정 모달: 저장하면 이후 자동/수동 발송 모두 수정본을 쓴다(기본값 복원 가능) ---
+    let templateList = [];
+    function currentTemplate() { return templateList.find((t) => t.message_type === document.getElementById('template-type').value); }
+    function renderTemplateEditor() {
+      const t = currentTemplate();
+      document.getElementById('template-body').value = t ? t.body : '';
+      document.getElementById('template-modal-message').textContent =
+        t && t.is_custom ? '수정본이 저장되어 있는 문자입니다. (기본값 복원 가능)' : '기본 템플릿입니다.';
+    }
+    function fillTemplateSelect() {
+      const select = document.getElementById('template-type');
+      const selected = select.value;
+      select.innerHTML = templateList.map((t) =>
+        `<option value="${escapeHtml(t.message_type)}">${escapeHtml(SMS_TYPE_LABELS[t.message_type] || t.message_type)}${t.is_custom ? ' ● 수정됨' : ''}</option>`).join('');
+      if (selected && templateList.some((t) => t.message_type === selected)) select.value = selected;
+    }
+    async function openTemplateModal() {
+      const msg = document.getElementById('admin-message');
+      try {
+        const result = await callSolapiApi({ listTemplates: true });
+        templateList = result.templates || [];
+        fillTemplateSelect();
+        renderTemplateEditor();
+        document.getElementById('template-modal').classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+      } catch (error) {
+        if (msg) msg.textContent = `템플릿 불러오기 실패: ${error.message}`;
+      }
+    }
+    function closeTemplateModal() {
+      document.getElementById('template-modal').classList.add('hidden');
+      document.body.style.overflow = '';
+    }
+    async function saveTemplate(restore) {
+      const t = currentTemplate();
+      if (!t) return;
+      const message = document.getElementById('template-modal-message');
+      const templateBody = restore ? '' : document.getElementById('template-body').value;
+      if (!restore && !templateBody.trim()) { message.textContent = '내용을 입력하세요. (기본 문구로 되돌리려면 기본값 복원을 누르세요)'; return; }
+      if (restore && !window.confirm('이 문자를 기본 템플릿으로 되돌릴까요?')) return;
+      message.textContent = restore ? '기본값으로 복원하는 중입니다.' : '저장하는 중입니다.';
+      try {
+        await callSolapiApi({ saveTemplate: true, messageType: t.message_type, templateBody });
+        const result = await callSolapiApi({ listTemplates: true });
+        templateList = result.templates || [];
+        fillTemplateSelect();
+        renderTemplateEditor();
+        document.getElementById('template-modal-message').textContent =
+          restore ? '기본 템플릿으로 복원했습니다.' : '저장했습니다. 이후 발송부터 이 내용이 적용됩니다.';
+      } catch (error) {
+        message.textContent = `저장 실패: ${error.message}`;
+      }
+    }
 
     // 발송 전 확인/수정 모달 — 서버에서 채워진 본문(previewMessage)을 받아 보여주고,
     // 관리자가 확인(필요 시 수정)한 본문을 반환한다. 취소하면 null을 반환해 발송 자체를 중단한다.
@@ -975,6 +1067,11 @@
       button.addEventListener('click', () => applyBulkAction(button.dataset.bulkAction));
     });
     document.getElementById('custom-sms-button').addEventListener('click', handleCustomSms);
+    document.getElementById('template-edit-button').addEventListener('click', openTemplateModal);
+    document.getElementById('template-type').addEventListener('change', renderTemplateEditor);
+    document.getElementById('template-save').addEventListener('click', () => saveTemplate(false));
+    document.getElementById('template-restore').addEventListener('click', () => saveTemplate(true));
+    document.querySelectorAll('[data-template-modal-close]').forEach((el) => el.addEventListener('click', closeTemplateModal));
 
     document.querySelectorAll('[data-class-modal-close]').forEach((el) => el.addEventListener('click', closeClassModal));
     document.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeClassModal(); });

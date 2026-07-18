@@ -116,6 +116,16 @@ on public.message_logs for select
 to anon
 using (false);
 
+-- 관리자가 수정한 문자 템플릿 저장소. 행이 있으면 solapi-reservations가 코드 기본 템플릿 대신 이 body를 쓴다.
+-- (행 삭제 = 기본값 복원. 접근은 Edge Function(service_role) 경유만 — anon 정책 없음이라 RLS로 차단됨)
+create table if not exists public.message_templates (
+  message_type text primary key,
+  body text not null,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.message_templates enable row level security;
+
 -- Seed example classes. Safe to run repeatedly if dates are unique enough for this simple project.
 -- 예시 시드(날짜는 과거일 수 있음, 운영 DB에는 적용하지 말 것)
 insert into public.classes (class_date, start_time, end_time, place, capacity, is_public, status)

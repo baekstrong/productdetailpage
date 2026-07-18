@@ -464,6 +464,20 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("custom: ''", solapi)
         self.assertIn("text is required", solapi)
 
+        # 템플릿 영구 수정: DB 수정본(message_templates)이 있으면 기본 템플릿 대신 사용, 관리자 모달에서 저장/복원
+        schema = read_page("supabase/schema.sql")
+        self.assertIn("message_templates", schema)
+        self.assertIn("alter table public.message_templates enable row level security", schema)
+        self.assertIn("message_templates", solapi)
+        self.assertIn("listTemplates", solapi)
+        self.assertIn("saveTemplate", solapi)
+        self.assertIn("fetchTemplateOverrides", solapi)
+        self.assertIn('id="template-modal"', admin)
+        self.assertIn("template-edit-button", admin)
+        self.assertIn("문자 템플릿 수정", admin)
+        self.assertIn("callSolapiApi", admin)
+        self.assertIn("기본값 복원", admin)
+
     def test_payment_reminder_function(self):
         fn = read_page("supabase/functions/payment-reminder/index.ts")
         self.assertIn("SUPABASE_SERVICE_ROLE_KEY", fn)

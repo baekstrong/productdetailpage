@@ -142,6 +142,52 @@ function fillTemplate(template: string, values: Record<string, string>): string 
   return Object.entries(values).reduce((text, [key, value]) => text.replaceAll(`{${key}}`, value), template);
 }
 
+// --- 관리자 수정 템플릿 저장소 (public.message_templates, service_role로만 접근) ---
+// 행이 있으면 코드 기본 템플릿 대신 그 body를 쓰고, 행 삭제 = 기본값 복원.
+function templateStore(): { url: string; key: string } | null {
+  const url = Deno.env.get('SUPABASE_URL');
+  const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (!url || !key) return null;
+  return { url: url.replace(/\/$/, ''), key };
+}
+
+// 저장된 수정본 조회(type 지정 시 그 종류만). 실패하면 빈 맵 — 기본 템플릿으로 안전 폴백해 발송은 계속된다.
+async function fetchTemplateOverrides(messageType?: string): Promise<Record<string, string>> {
+  const store = templateStore();
+  if (!store) return {};
+  const filter = messageType ? `&message_type=eq.${encodeURIComponent(messageType)}` : '';
+  try {
+    const res = await fetch(`${store.url}/rest/v1/message_templates?select=message_type,body${filter}`, {
+      headers: { apikey: store.key, authorization: `Bearer ${store.key}` },
+    });
+    if (!res.ok) return {};
+    const rows = await res.json();
+    const map: Record<string, string> = {};
+    if (Array.isArray(rows)) for (const r of rows) if (r && r.body) map[String(r.message_type)] = String(r.body);
+    return map;
+  } catch (_) {
+    return {};
+  }
+}
+
+async function saveTemplateOverride(messageType: string, body: string): Promise<void> {
+  const store = templateStore();
+  if (!store) throw new Error('Supabase secrets are not configured');
+  const headers = { apikey: store.key, authorization: `Bearer ${store.key}`, 'content-type': 'application/json' };
+  if (!body.trim()) {
+    // 빈 본문 저장 = 수정본 삭제 = 기본 템플릿 복원
+    const res = await fetch(`${store.url}/rest/v1/message_templates?message_type=eq.${encodeURIComponent(messageType)}`, { method: 'DELETE', headers });
+    if (!res.ok) throw new Error(`template delete failed (${res.status})`);
+    return;
+  }
+  const res = await fetch(`${store.url}/rest/v1/message_templates?on_conflict=message_type`, {
+    method: 'POST',
+    headers: { ...headers, prefer: 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify({ message_type: messageType, body, updated_at: new Date().toISOString() }),
+  });
+  if (!res.ok) throw new Error(`template save failed (${res.status})`);
+}
+
 function maskPhone(phone: string): string {
   return phone.replace(/^(010)(\d{4})(\d{4})$/, '$1-****-$3');
 }
@@ -285,6 +331,27 @@ serve(async (req) => {
       return jsonResponse(result);
     }
 
+    // 문자 템플릿 조회/수정 — 관리자 화면 '문자 템플릿 수정' 모달용.
+    if (body.listTemplates) {
+      const overrides = await fetchTemplateOverrides();
+      const list = (Object.keys(templates) as MessageType[])
+        .filter((type) => type !== 'custom') // custom은 템플릿 없는 자유 문자라 편집 대상 아님
+        .map((type) => ({
+          message_type: type,
+          body: overrides[type] || templates[type],
+          default_body: templates[type],
+          is_custom: Boolean(overrides[type]),
+        }));
+      return jsonResponse({ ok: true, templates: list });
+    }
+    if (body.saveTemplate) {
+      const type = String(body.messageType || '') as MessageType;
+      if (templates[type] === undefined || type === 'custom') return jsonResponse({ error: 'unknown message type' }, 400);
+      const templateBody = String(body.templateBody || '');
+      await saveTemplateOverride(type, templateBody);
+      return jsonResponse({ ok: true, messageType: type, restored: !templateBody.trim() });
+    }
+
     const messageType = body.messageType as MessageType;
     const phone = String(body.phone || '');
     const scheduledAt = body.scheduledAt ? String(body.scheduledAt) : undefined;
@@ -294,7 +361,10 @@ serve(async (req) => {
 
     // 관리자가 발송 전 확인 화면에서 수정한 본문(overrideText)이 있으면 템플릿 대신 그대로 발송한다.
     const overrideText = typeof body.overrideText === 'string' && body.overrideText.trim() ? String(body.overrideText) : '';
-    const text = overrideText || fillTemplate(templates[messageType], values);
+    // 관리자가 저장해 둔 수정 템플릿이 있으면 그걸, 없으면 코드 기본 템플릿을 쓴다.
+    const stored = await fetchTemplateOverrides(messageType);
+    const template = stored[messageType] || templates[messageType];
+    const text = overrideText || fillTemplate(template, values);
 
     // preview: 발송 없이 채워진 본문만 반환 — 관리자 발송 전 확인/수정용.
     if (body.preview) return jsonResponse({ ok: true, preview: true, messageType, text });
