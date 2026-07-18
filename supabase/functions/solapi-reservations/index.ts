@@ -18,7 +18,8 @@ type MessageType =
   | 'review_material'
   | 'review_video'
   | 'reservation_cancelled'
-  | 'admin_payment_reminder';
+  | 'admin_payment_reminder'
+  | 'custom';
 
 const templates: Record<MessageType, string> = {
   // 예약 신청 완료 문자(레거시 — 신규 신청은 reservation_success/reservation_waitlist 사용)
@@ -133,6 +134,8 @@ https://www.notion.so/easystrength/Part-2-9910eb46d55f40efad4f986986f5876d?sourc
   admin_payment_reminder: `[케틀벨 원데이 리마인더]
 {class_label} 수업이 7일 앞입니다.
 현재 신청 {count}명 — 선착순 승인하고 결제 안내를 보내주세요.`,
+  // 직접 작성 문자 — 템플릿 없이 관리자가 쓴 본문(overrideText)을 그대로 발송한다.
+  custom: '',
 };
 
 function fillTemplate(template: string, values: Record<string, string>): string {
@@ -287,7 +290,7 @@ serve(async (req) => {
     const scheduledAt = body.scheduledAt ? String(body.scheduledAt) : undefined;
     const values = body.values || {};
 
-    if (!templates[messageType]) return jsonResponse({ error: 'unknown message type' }, 400);
+    if (templates[messageType] === undefined) return jsonResponse({ error: 'unknown message type' }, 400);
 
     // 관리자가 발송 전 확인 화면에서 수정한 본문(overrideText)이 있으면 템플릿 대신 그대로 발송한다.
     const overrideText = typeof body.overrideText === 'string' && body.overrideText.trim() ? String(body.overrideText) : '';
@@ -296,6 +299,7 @@ serve(async (req) => {
     // preview: 발송 없이 채워진 본문만 반환 — 관리자 발송 전 확인/수정용.
     if (body.preview) return jsonResponse({ ok: true, preview: true, messageType, text });
 
+    if (!text.trim()) return jsonResponse({ error: 'text is required' }, 400);
     if (!phone) return jsonResponse({ error: 'phone is required' }, 400);
     const result = await sendSolapi(phone, text, scheduledAt);
     return jsonResponse({ ...result, messageType, phoneMasked: maskPhone(phone) });

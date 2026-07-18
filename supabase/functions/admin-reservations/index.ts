@@ -446,8 +446,8 @@ async function cancelScheduledFollowups(reservationId: string) {
   }
 }
 
-// 재발송 가능한 자동 문자 종류 화이트리스트.
-const RESENDABLE_TYPES = new Set(['reservation_received', 'payment 안내', 'seat_opened', 'seat_secured', 'payment_completed', 'class_reminder', 'review_material', 'review_video', 'reservation_cancelled']);
+// 재발송 가능한 자동 문자 종류 화이트리스트. custom은 관리자가 직접 작성한 본문을 그대로 보내는 자유 문자.
+const RESENDABLE_TYPES = new Set(['reservation_received', 'payment 안내', 'seat_opened', 'seat_secured', 'payment_completed', 'class_reminder', 'review_material', 'review_video', 'reservation_cancelled', 'custom']);
 
 // 현황판에서 미발송자에게 해당 종류 문자를 재발송한다.
 async function resendMessage(classId: string, messageType: string, reservationIds: string[], videoUrl?: string, messageText?: string) {
@@ -455,6 +455,8 @@ async function resendMessage(classId: string, messageType: string, reservationId
   // 복습 영상은 수업마다 링크가 달라 관리자가 입력한 값을 받아 발송한다.
   const videoLink = String(videoUrl || '').trim();
   if (messageType === 'review_video' && !videoLink) throw new Error('복습 영상 링크가 필요합니다');
+  // 직접 작성 문자는 템플릿이 없어 본문(messageText)이 반드시 있어야 한다.
+  if (messageType === 'custom' && !String(messageText || '').trim()) throw new Error('문자 내용이 필요합니다');
   if (!Array.isArray(reservationIds) || !reservationIds.length) return { ok: true, sent: 0 };
   const info = await classInfo(classId);
   let sent = 0;

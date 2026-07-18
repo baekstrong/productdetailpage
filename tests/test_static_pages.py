@@ -455,6 +455,15 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("body.preview", solapi)
         self.assertIn("overrideText", solapi)
 
+        # 직접 작성 문자: 상태 변경 없이 관리자가 쓴 본문만 발송(빈 본문은 서버가 거부)
+        self.assertIn('id="custom-sms-button"', admin)
+        self.assertIn("직접 작성 문자", admin)
+        self.assertIn("handleCustomSms", admin)
+        self.assertIn("'custom'", admin_fn)
+        self.assertIn("문자 내용이 필요합니다", admin_fn)
+        self.assertIn("custom: ''", solapi)
+        self.assertIn("text is required", solapi)
+
     def test_payment_reminder_function(self):
         fn = read_page("supabase/functions/payment-reminder/index.ts")
         self.assertIn("SUPABASE_SERVICE_ROLE_KEY", fn)
