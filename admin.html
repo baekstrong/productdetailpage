@@ -130,6 +130,7 @@
           <button type="button" data-bulk-action="payment-expired" class="rounded-lg bg-amber-100 px-3 py-2 text-sm font-bold text-amber-700">미결제 마감</button>
           <button type="button" data-bulk-action="refund" class="rounded-lg bg-fuchsia-100 px-3 py-2 text-sm font-bold text-fuchsia-700" title="스마트스토어에서 환불 승인한 뒤 누르세요 — 예약 취소 + 결제 상태 '환불' 기록 + 환불 안내 문자">환불 처리</button>
           <button type="button" data-bulk-action="cancel" class="rounded-lg bg-slate-200 px-3 py-2 text-sm font-bold text-slate-700">취소 처리</button>
+          <button type="button" data-bulk-action="restore" class="rounded-lg bg-lime-100 px-3 py-2 text-sm font-bold text-lime-700" title="취소된 신청을 '대기' 상태로 되살립니다(결제 상태 초기화, 문자 없음)">↩️ 취소 복구</button>
           <button type="button" id="block-phone-button" class="rounded-lg bg-rose-100 px-3 py-2 text-sm font-bold text-rose-700" title="예약을 조용히 취소하고(문자 없음) 이 번호의 향후 신청을 차단합니다">🚫 예약 거부(차단)</button>
           <button type="button" id="custom-sms-button" class="rounded-lg bg-violet-100 px-3 py-2 text-sm font-bold text-violet-700" title="상태 변경 없이 직접 쓴 문자만 보냅니다">✉️ 직접 작성 문자 보내기</button>
         </div>
@@ -1163,7 +1164,9 @@
       waitlist: { reservation_status: 'waitlisted' },
       'payment-expired': { reservation_status: 'cancelled', payment_status: 'expired' },
       refund: { reservation_status: 'cancelled', payment_status: 'refunded' },
-      cancel: { reservation_status: 'cancelled' }
+      cancel: { reservation_status: 'cancelled' },
+      // 취소 복구: 취소/불참 건을 '대기'로 되살리고 결제 상태를 초기화한다(문자 없음). 이후 상태는 다른 버튼으로.
+      restore: { reservation_status: 'waitlisted', payment_status: 'pending' }
     };
 
     // 액션별로 서버가 자동 발송하는 문자 종류 — 발송 전 확인 모달에 사용(waitlist는 문자 없음).
@@ -1192,8 +1195,18 @@
       const message = document.getElementById('admin-message');
       const updates = BULK_ACTION_UPDATES[action];
       if (!updates) return;
-      const ids = selectedReservationIds();
+      let ids = selectedReservationIds();
       if (!ids.length) { window.alert('먼저 처리할 신청자를 체크하세요.'); return; }
+      if (action === 'restore') {
+        // 복구는 취소/불참 건에만 적용 — 활성 신청이 실수로 대기로 강등되는 사고 방지.
+        const cancelledIds = (adminData.reservations || [])
+          .filter((r) => ids.indexOf(r.id) !== -1 && (r.reservation_status === 'cancelled' || r.reservation_status === 'no_show'))
+          .map((r) => r.id);
+        if (!cancelledIds.length) { window.alert('취소(불참)된 신청만 복구할 수 있습니다. 취소된 신청자를 체크하세요.'); return; }
+        if (cancelledIds.length < ids.length && !window.confirm(`선택 ${ids.length}명 중 취소된 ${cancelledIds.length}명만 복구합니다. 진행할까요?`)) return;
+        if (cancelledIds.length === ids.length && !window.confirm(`선택한 ${cancelledIds.length}명을 '대기' 상태로 복구할까요? (문자는 발송되지 않으며, 이후 결제 안내·확정 등은 다른 버튼으로 진행하세요)`)) return;
+        ids = cancelledIds;
+      }
       try {
         // 문자가 나가는 액션은 발송 전에 실제 본문을 보여주고 확인/수정을 받는다. 취소하면 상태 변경도 하지 않는다.
         // (별도 confirm 창 없이 이 모달이 유일한 확인 단계 — 상태 변경 안내는 모달 안 노트로 표시)
@@ -1207,7 +1220,7 @@
           const mixed = classIds.length > 1;
           const note = (BULK_ACTION_NOTES[action] || '')
             + (mixed ? ' ※ 여러 수업이 섞여 있어 문자는 각자 자기 수업 일정으로 발송됩니다(아래 미리보기는 그중 한 수업 기준, 본문 수정 불가).' : '');
-          const result = await confirmSmsBeforeSend(smsType, ids.length, undefined, note, classIds[0], action === 'cancel', mixed);
+          const result = await confirmSmsBeforeSend(smsType, ids.length, undefined, note, classIds[0], true, mixed);
           if (result === null) { message.textContent = '문자 발송을 취소해 처리를 중단했습니다.'; return; }
           if (result === SEND_SILENT) silent = true;
           else if (result !== SEND_TEMPLATE) messageText = result;

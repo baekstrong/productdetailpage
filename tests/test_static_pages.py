@@ -580,6 +580,11 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("취소대상", admin)
         self.assertIn('data-status-filter="cancel-candidate"', admin)
 
+        # 취소 복구: 취소/불참 건만 대기로 되살림(결제 상태 초기화, 문자 없음) — 활성 신청 강등 방지 가드
+        self.assertIn('data-bulk-action="restore"', admin)
+        self.assertIn("취소 복구", admin)
+        self.assertIn("취소(불참)된 신청만 복구할 수 있습니다", admin)
+
         # 환불: 공개 페이지 환불 규정 + 관리자 환불 처리 버튼(취소+환불 기록+환불 안내 문자)
         self.assertIn("Q. 결제 후 환불 규정은 어떻게 되나요?", html)
         self.assertIn("수업 시작 전 취소는 전액 환불", html)
