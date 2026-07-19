@@ -126,6 +126,26 @@ create table if not exists public.message_templates (
 
 alter table public.message_templates enable row level security;
 
+-- 예약 거부(차단) 번호 명단. 등록된 번호는 submit-reservation이 신규 신청을 거부한다.
+-- (관리자 벌크 액션 '예약 거부'로 등록, '차단됨' 배지 클릭으로 해제. Edge Function 경유만 — anon 정책 없음)
+create table if not exists public.blocked_phones (
+  phone text primary key,
+  reason text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.blocked_phones enable row level security;
+
+-- 운영 설정 키-값 저장소 (예: payment_deadline_hours = 결제 안내 후 결제 기한(시간), 기본 24).
+-- 문자 템플릿 {payment_deadline_hours} 치환과 관리자 '결제 안내 중 Nh 경과' 배지 기준에 쓰인다.
+create table if not exists public.app_settings (
+  key text primary key,
+  value text not null,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.app_settings enable row level security;
+
 -- Seed example classes. Safe to run repeatedly if dates are unique enough for this simple project.
 -- 예시 시드(날짜는 과거일 수 있음, 운영 DB에는 적용하지 말 것)
 insert into public.classes (class_date, start_time, end_time, place, capacity, is_public, status)

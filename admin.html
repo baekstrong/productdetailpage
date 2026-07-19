@@ -112,6 +112,7 @@
           <button type="button" data-bulk-action="seat-secured" class="rounded-lg bg-teal-100 px-3 py-2 text-sm font-bold text-teal-700">여석 안내 (결제 링크 X)</button>
           <button type="button" data-bulk-action="payment-expired" class="rounded-lg bg-amber-100 px-3 py-2 text-sm font-bold text-amber-700">미결제 마감</button>
           <button type="button" data-bulk-action="cancel" class="rounded-lg bg-slate-200 px-3 py-2 text-sm font-bold text-slate-700">취소 처리</button>
+          <button type="button" id="block-phone-button" class="rounded-lg bg-rose-100 px-3 py-2 text-sm font-bold text-rose-700" title="예약을 조용히 취소하고(문자 없음) 이 번호의 향후 신청을 차단합니다">🚫 예약 거부(차단)</button>
           <button type="button" id="custom-sms-button" class="rounded-lg bg-violet-100 px-3 py-2 text-sm font-bold text-violet-700" title="상태 변경 없이 직접 쓴 문자만 보냅니다">✉️ 직접 작성 문자 보내기</button>
         </div>
 
@@ -146,7 +147,12 @@
             <h2 class="text-xl font-extrabold">문자 발송 현황</h2>
             <p class="mt-2 text-sm text-slate-500">선택한 일정 기준으로 단계별 안내 문자의 발송/예약 여부를 보여줍니다. 일부가 누락되면 제외 명단과 재발송 버튼이 나타납니다.</p>
           </div>
-          <button id="template-edit-button" type="button" class="shrink-0 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-violet-700" title="자동 발송되는 문자의 기본 내용을 영구 수정합니다">📝 문자 템플릿 수정</button>
+          <div class="flex shrink-0 flex-col items-end gap-2">
+            <button id="template-edit-button" type="button" class="rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-violet-700" title="자동 발송되는 문자의 기본 내용을 영구 수정합니다">📝 문자 템플릿 수정</button>
+            <label class="flex items-center gap-1 text-xs font-bold text-slate-600" title="문자 문구의 {payment_deadline_hours} 치환값과 '결제 안내 중' 경과 배지 기준에 함께 적용됩니다">결제 기한
+              <input id="payment-deadline-input" type="number" min="1" max="72" class="w-16 rounded-lg border border-slate-300 px-2 py-1.5 font-normal" />시간
+              <button id="payment-deadline-save" type="button" class="rounded-lg bg-slate-800 px-3 py-1.5 font-bold text-white">저장</button></label>
+          </div>
         </div>
         <div id="message-status-rows" class="mt-4"></div>
       </section>
@@ -217,7 +223,7 @@
           <label class="mt-4 grid gap-1 text-xs font-bold text-slate-600">문자 종류
             <select id="template-type" class="rounded-xl border border-slate-300 px-3 py-2.5 font-normal"></select></label>
           <textarea id="template-body" rows="14" class="mt-3 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm leading-relaxed"></textarea>
-          <p class="mt-2 text-xs text-slate-500">{class_date}, {place}, {payment_url}, {video_url}, {waitlist_rank} 같은 중괄호 표시는 발송할 때 실제 값으로 자동 치환되니 지우지 않도록 주의하세요. 저장하면 이후 발송부터 계속 적용됩니다.</p>
+          <p class="mt-2 text-xs text-slate-500">{class_date}, {place}, {payment_url}, {video_url}, {waitlist_rank}, {payment_deadline_hours} 같은 중괄호 표시는 발송할 때 실제 값으로 자동 치환되니 지우지 않도록 주의하세요. 저장하면 이후 발송부터 계속 적용됩니다.</p>
           <div class="mt-4 flex flex-wrap items-center gap-2">
             <button id="template-save" type="button" class="rounded-xl bg-orange-500 px-5 py-3 font-bold text-white">저장</button>
             <button id="template-restore" type="button" class="rounded-xl bg-slate-100 px-5 py-3 font-bold text-slate-700">기본값 복원</button>
@@ -241,8 +247,17 @@
     // 관리자 비밀번호는 클라이언트에 저장하지 않고, Supabase Edge Function이
     // ADMIN_PASSWORD_HASH(SHA-256) 시크릿과 비교해 서버에서 검증한다.
     let adminPassword = '';
-    let adminData = { classes: [], reservations: [], messageLogs: [] };
+    let adminData = { classes: [], reservations: [], messageLogs: [], blockedPhones: [], settings: {} };
     let currentClassId = '';
+
+    // 결제 안내 후 결제 기한(시간) — 운영 설정값, 기본 24. 문자 치환·경과 배지 기준 공용.
+    function deadlineHours() {
+      const n = Number((adminData.settings || {}).payment_deadline_hours);
+      return Number.isFinite(n) && n > 0 ? n : 24;
+    }
+    function isBlockedPhone(phone) {
+      return (adminData.blockedPhones || []).some((b) => b.phone === phone);
+    }
 
     const statusLabels = {
       open: '예약 가능', waitlist: '대기 가능', closed: '마감', hidden: '숨김',
@@ -319,7 +334,7 @@
       if (r.reservation_status === 'payment_target') {
         // 결제 링크를 보낸 대상(sent)은 '결제 안내 중', 링크 없이 자리만 확보(pending)는 '선착순 N'.
         if (r.payment_status === 'sent') {
-          return '<span class="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-bold text-orange-700">결제 안내 중</span>';
+          return '<span class="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-bold text-orange-700">결제 안내 중</span>' + paymentOverdueHtml(r);
         }
         const no = seatNo && seatNo[r.id];
         return `<span class="rounded-full bg-teal-100 px-2 py-0.5 text-xs font-bold text-teal-700">선착순 확보${no ? ' ' + no : ''}</span>`;
@@ -341,7 +356,8 @@
       return times.length ? Math.max.apply(null, times) : null;
     }
 
-    // 결제 안내 문자 발송 후 24시간이 지났는데 아직 미결제면 경과 배지(관리자 판단용 — 자동 마감 아님).
+    // 결제 안내 문자 발송 후 결제 기한(운영 설정)이 지났는데 아직 미결제면 경과 배지(관리자 판단용 — 자동 마감 아님).
+    // '구분' 칸의 '결제 안내 중' 배지 옆에 표시된다.
     function paymentOverdueHtml(r) {
       const stillWaiting = (r.reservation_status === 'payment_target' || r.payment_status === 'sent')
         && r.payment_status !== 'paid'
@@ -350,8 +366,8 @@
       const sentAt = paymentSentAt(r.id);
       if (!sentAt) return '';
       const hours = Math.floor((Date.now() - sentAt) / 3600000);
-      if (hours < 24) return '';
-      return `<span class="ml-1 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700" title="결제 안내 문자 발송 후 ${hours}시간 경과 — 미결제. 필요하면 미결제 마감 처리하세요.">${hours}h 경과</span>`;
+      if (hours < deadlineHours()) return '';
+      return `<span class="ml-1 inline-block rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-bold text-rose-700" title="결제 안내 문자 발송 후 ${hours}시간 경과 — 기한 ${deadlineHours()}시간 초과, 미결제. 필요하면 미결제 마감/예약 거부 처리하세요.">${hours}h 경과</span>`;
     }
 
     function classDateLabel(classId) {
@@ -411,6 +427,12 @@
       window.alert(`${name} ${phone} 신청 내역\n\n${lines}`);
     }
 
+    // 차단된 번호 표시 — 클릭하면 차단 해제.
+    function blockedBadgeHtml(phone) {
+      if (!isBlockedPhone(phone)) return '';
+      return ` <button type="button" data-unblock-phone="${escapeHtml(phone)}" class="ml-1 rounded bg-rose-600 px-1.5 py-0.5 text-[10px] font-bold text-white" title="예약 거부(차단)된 번호 — 클릭하면 차단을 해제합니다">🚫 차단됨</button>`;
+    }
+
     function dupBadgeHtml(group) {
       if (!group || group.length < 2) return '';
       const phone = group[0].phone || '';
@@ -453,11 +475,11 @@
           <td class="p-3">${index + 1}</td>
           <td class="p-3">${groupBadgeHtml(r, liveRank, remaining, seatNo)}</td>
           <td class="p-3 font-bold">${escapeHtml(r.applicant_name)}</td>
-          <td class="p-3">${escapeHtml(r.phone)}${dupBadgeHtml(activeByPhone[r.phone])}</td>
+          <td class="p-3">${escapeHtml(r.phone)}${blockedBadgeHtml(r.phone)}${dupBadgeHtml(activeByPhone[r.phone])}</td>
           <td class="p-3">${escapeHtml(r.kettlebell_experience || '')}</td>
           <td class="p-3" title="${escapeHtml(r.reason || '')}">${escapeHtml(r.reason || '')}</td>
           <td class="p-3">${escapeHtml(statusLabels[r.reservation_status] || r.reservation_status)}</td>
-          <td class="p-3">${escapeHtml(statusLabels[r.payment_status] || r.payment_status)}${paymentOverdueHtml(r)}</td>
+          <td class="p-3">${escapeHtml(statusLabels[r.payment_status] || r.payment_status)}</td>
           <td class="p-3">${escapeHtml(r.waitlist_order || '')}</td>
           <td class="p-3">${escapeHtml(formatDateTime(r.created_at))}</td>
           <td class="p-3"><button type="button" data-memo-edit="${escapeHtml(r.id)}" class="text-left underline decoration-dotted">${escapeHtml(r.admin_memo || '메모 추가')}</button></td>
@@ -913,7 +935,15 @@
     async function loadAdminData() {
       document.getElementById('admin-message').textContent = '예약 정보를 불러오는 중입니다.';
       const result = await callAdminApi('list');
-      adminData = { classes: result.classes || [], reservations: result.reservations || [], messageLogs: result.message_logs || [] };
+      adminData = {
+        classes: result.classes || [],
+        reservations: result.reservations || [],
+        messageLogs: result.message_logs || [],
+        blockedPhones: result.blocked_phones || [],
+        settings: result.settings || {}
+      };
+      const deadlineInput = document.getElementById('payment-deadline-input');
+      if (deadlineInput && document.activeElement !== deadlineInput) deadlineInput.value = deadlineHours();
       renderClassManager(adminData.classes);
       renderAdminData();
       document.getElementById('admin-message').textContent = '실제 예약 정보를 표시 중입니다.';
@@ -1068,6 +1098,19 @@
       if (event.target.matches('[data-reservation-check]')) updateSelectedCount();
     });
     document.getElementById('reservation-rows').addEventListener('click', async (event) => {
+      const unblockButton = event.target.closest('[data-unblock-phone]');
+      if (unblockButton) {
+        const phone = unblockButton.dataset.unblockPhone;
+        if (!window.confirm(`${phone} 번호의 예약 거부(차단)를 해제할까요? 해제하면 다시 예약 신청을 받을 수 있습니다.`)) return;
+        try {
+          await callAdminApi('unblockPhone', { phone });
+          await loadAdminData();
+          document.getElementById('admin-message').textContent = '차단을 해제했습니다.';
+        } catch (error) {
+          document.getElementById('admin-message').textContent = `차단 해제 실패: ${error.message}`;
+        }
+        return;
+      }
       const dupButton = event.target.closest('[data-dup-phone]');
       if (dupButton) { showDupDetail(dupButton.dataset.dupPhone); return; }
       const memoButton = event.target.closest('[data-memo-edit]');
@@ -1091,6 +1134,31 @@
       button.addEventListener('click', () => applyBulkAction(button.dataset.bulkAction));
     });
     document.getElementById('custom-sms-button').addEventListener('click', handleCustomSms);
+    document.getElementById('block-phone-button').addEventListener('click', async () => {
+      const message = document.getElementById('admin-message');
+      const ids = selectedReservationIds();
+      if (!ids.length) { message.textContent = '먼저 예약 거부할 신청자를 체크하세요.'; return; }
+      if (!window.confirm(`선택한 ${ids.length}명을 예약 거부 처리할까요?\n\n· 진행 중인 예약은 조용히 취소됩니다(안내 문자 없음)\n· 이 번호로는 앞으로 예약 신청을 받지 않습니다 (번호 옆 '차단됨' 클릭으로 해제 가능)`)) return;
+      message.textContent = '예약 거부 처리 중입니다.';
+      try {
+        const result = await callAdminApi('blockPhones', { reservationIds: ids });
+        await loadAdminData();
+        message.textContent = `${result.blocked}명을 예약 거부(차단) 처리했습니다.`;
+      } catch (error) {
+        message.textContent = `예약 거부 실패: ${error.message}`;
+      }
+    });
+    document.getElementById('payment-deadline-save').addEventListener('click', async () => {
+      const message = document.getElementById('admin-message');
+      const value = document.getElementById('payment-deadline-input').value;
+      try {
+        await callAdminApi('saveSetting', { key: 'payment_deadline_hours', value });
+        await loadAdminData();
+        message.textContent = `결제 기한을 ${value}시간으로 저장했습니다. 이후 발송되는 문자 문구와 경과 배지에 적용됩니다.`;
+      } catch (error) {
+        message.textContent = `결제 기한 저장 실패: ${error.message}`;
+      }
+    });
     document.getElementById('template-edit-button').addEventListener('click', openTemplateModal);
     document.getElementById('template-type').addEventListener('change', renderTemplateEditor);
     document.getElementById('template-save').addEventListener('click', () => saveTemplate(false));

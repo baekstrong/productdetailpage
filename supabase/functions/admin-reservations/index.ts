@@ -214,6 +214,17 @@ async function listAdminData() {
   const messageLogs = await supabaseFetch('message_logs?select=reservation_id,message_type,status,scheduled_at,sent_at&order=created_at.asc');
   const classRows = Array.isArray(classes) ? classes : [];
   const reservationRows = Array.isArray(reservations) ? reservations : [];
+  // 차단 명단·운영 설정은 부가 정보 — 조회 실패해도 관리자 화면 자체는 뜨도록 방어.
+  let blockedPhones: unknown[] = [];
+  let settings: Record<string, string> = {};
+  try {
+    const blocked = await supabaseFetch('blocked_phones?select=phone,reason,created_at');
+    if (Array.isArray(blocked)) blockedPhones = blocked;
+  } catch (_) { /* ignore */ }
+  try {
+    const settingRows = await supabaseFetch('app_settings?select=key,value');
+    if (Array.isArray(settingRows)) for (const r of settingRows) settings[String(r.key)] = String(r.value);
+  } catch (_) { /* ignore */ }
 
   const summary = classRows.map((c: Record<string, unknown>) => {
     const rows = reservationRows.filter((r: Record<string, unknown>) => r.class_id === c.id);
@@ -239,7 +250,63 @@ async function listAdminData() {
       payment_ready_count: paymentReady,
     };
   });
-  return { ok: true, classes: summary, reservations: reservationRows, message_logs: Array.isArray(messageLogs) ? messageLogs : [] };
+  return {
+    ok: true,
+    classes: summary,
+    reservations: reservationRows,
+    message_logs: Array.isArray(messageLogs) ? messageLogs : [],
+    blocked_phones: blockedPhones,
+    settings,
+  };
+}
+
+// --- 예약 거부(차단): 번호를 blocked_phones에 등록하고, 활성 예약은 조용히 취소(문자 없음) ---
+async function blockPhones(reservationIds: string[]) {
+  let blocked = 0;
+  for (const id of reservationIds) {
+    const rows = await supabaseFetch(`reservations?id=eq.${encodeURIComponent(id)}&select=*`);
+    const reservation = Array.isArray(rows) ? rows[0] : rows;
+    if (!reservation || !reservation.phone) continue;
+    await supabaseFetch('blocked_phones?on_conflict=phone', {
+      method: 'POST',
+      headers: { prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify({ phone: reservation.phone, reason: `관리자 예약 거부 (${reservation.applicant_name || ''})` }),
+    });
+    // 아직 활성 상태면 조용히 취소해 자리를 비운다(안내 문자·상태변경 트리거 없음) + 예약된 후속 문자 취소.
+    if (reservation.reservation_status !== 'cancelled' && reservation.reservation_status !== 'no_show') {
+      await supabaseFetch(`reservations?id=eq.${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: { prefer: 'return=minimal' },
+        body: JSON.stringify({ reservation_status: 'cancelled', updated_at: new Date().toISOString() }),
+      });
+      await cancelScheduledFollowups(id);
+    }
+    blocked += 1;
+  }
+  return { ok: true, blocked };
+}
+
+async function unblockPhone(phone: string) {
+  if (!phone) throw new Error('phone is required');
+  await supabaseFetch(`blocked_phones?phone=eq.${encodeURIComponent(phone)}`, { method: 'DELETE' });
+  return { ok: true };
+}
+
+// --- 운영 설정 저장 (키 화이트리스트) ---
+const SETTING_KEYS = new Set(['payment_deadline_hours']);
+
+async function saveSetting(key: string, value: string) {
+  if (!SETTING_KEYS.has(key)) throw new Error('invalid setting key');
+  if (key === 'payment_deadline_hours') {
+    const n = Number(value);
+    if (!Number.isInteger(n) || n < 1 || n > 72) throw new Error('결제 기한은 1~72 사이 정수(시간)로 입력하세요');
+  }
+  await supabaseFetch('app_settings?on_conflict=key', {
+    method: 'POST',
+    headers: { prefer: 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify({ key, value: String(value), updated_at: new Date().toISOString() }),
+  });
+  return { ok: true, key, value: String(value) };
 }
 
 async function createClass(input: Record<string, unknown>) {
@@ -545,6 +612,9 @@ serve(async (req) => {
     if (action === 'updateClass') return jsonResponse(await updateClass(String(body.classId || ''), body.updates || {}));
     if (action === 'deleteClass') return jsonResponse(await deleteClass(String(body.classId || ''), Boolean(body.force)));
     if (action === 'backfillCalendar') return jsonResponse(await backfillCalendar());
+    if (action === 'blockPhones') return jsonResponse(await blockPhones(Array.isArray(body.reservationIds) ? body.reservationIds.map(String) : []));
+    if (action === 'unblockPhone') return jsonResponse(await unblockPhone(String(body.phone || '')));
+    if (action === 'saveSetting') return jsonResponse(await saveSetting(String(body.key || ''), String(body.value || '')));
     if (action === 'bulkApprove') return jsonResponse(await bulkApprove(String(body.classId || ''), body.messageText ? String(body.messageText) : undefined));
     if (action === 'previewMessage') {
       return jsonResponse(await previewMessage(String(body.classId || ''), String(body.messageType || ''), body.videoUrl ? String(body.videoUrl) : undefined));

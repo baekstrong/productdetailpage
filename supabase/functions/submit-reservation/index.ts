@@ -133,6 +133,12 @@ serve(async (req) => {
     if (!/^010\d{8}$/.test(phone)) return jsonResponse({ ok: false, error: '휴대폰 번호를 확인해 주세요. (010으로 시작하는 11자리)' }, 400);
     if (!classId) return jsonResponse({ ok: false, error: '수업이 선택되지 않았습니다.' }, 400);
 
+    // 예약 거부(차단) 번호 검사 — 관리자가 차단한 번호는 신규 신청을 받지 않는다.
+    const blockedRows = await supabaseFetch(`blocked_phones?phone=eq.${encodeURIComponent(phone)}&select=phone`);
+    if (Array.isArray(blockedRows) && blockedRows.length > 0) {
+      return jsonResponse({ ok: false, error: '현재 이 번호로는 온라인 예약 신청을 받을 수 없습니다. 필요하시면 문자로 문의해 주세요.' }, 403);
+    }
+
     // 신청 가능한 수업인지 확인(공개 + 숨김 아님 + 아직 시작 전).
     const classes = await supabaseFetch(`classes?id=eq.${encodeURIComponent(classId)}&select=id,class_date,start_time,end_time,is_public,status,capacity,open_at`);
     const classRow = Array.isArray(classes) ? classes[0] : null;

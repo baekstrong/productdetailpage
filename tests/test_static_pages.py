@@ -483,6 +483,36 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("callSolapiApi", admin)
         self.assertIn("기본값 복원", admin)
 
+    def test_payment_deadline_setting_and_block_system(self):
+        admin = read_page("admin.html")
+        admin_fn = read_page("supabase/functions/admin-reservations/index.ts")
+        solapi = read_page("supabase/functions/solapi-reservations/index.ts")
+        submit = read_page("supabase/functions/submit-reservation/index.ts")
+        schema = read_page("supabase/schema.sql")
+
+        # 예약 거부(차단): 테이블 + 공개 신청 차단 + 관리자 버튼/차단 배지/해제
+        self.assertIn("blocked_phones", schema)
+        self.assertIn("alter table public.blocked_phones enable row level security", schema)
+        self.assertIn("blocked_phones", submit)
+        self.assertIn("온라인 예약 신청을 받을 수 없습니다", submit)
+        self.assertIn("action === 'blockPhones'", admin_fn)
+        self.assertIn("action === 'unblockPhone'", admin_fn)
+        self.assertIn('id="block-phone-button"', admin)
+        self.assertIn("data-unblock-phone", admin)
+        self.assertIn("차단됨", admin)
+
+        # 결제 기한 설정: app_settings + 템플릿 치환자 + 관리자 입력 + '결제 안내 중' 경과 배지 기준
+        self.assertIn("app_settings", schema)
+        self.assertIn("alter table public.app_settings enable row level security", schema)
+        self.assertIn("{payment_deadline_hours}", solapi)
+        self.assertIn("fetchAppSetting", solapi)
+        self.assertNotIn("24시간", solapi)  # 기한을 템플릿에 하드코딩하지 않는다
+        self.assertIn("action === 'saveSetting'", admin_fn)
+        self.assertIn("payment_deadline_hours", admin_fn)
+        self.assertIn('id="payment-deadline-input"', admin)
+        self.assertIn("deadlineHours", admin)
+        self.assertIn("h 경과", admin)
+
     def test_payment_reminder_function(self):
         fn = read_page("supabase/functions/payment-reminder/index.ts")
         self.assertIn("SUPABASE_SERVICE_ROLE_KEY", fn)

@@ -58,7 +58,7 @@ const templates: Record<MessageType, string> = {
 장소: {place}(https://naver.me/xiqDtNuY)
 정원: 6명
 
-결제는 안내 후 24시간까지 가능하며, 늦어지면 다음 대기자에게 자리가 넘어갈 수 있습니다
+결제는 안내 후 {payment_deadline_hours}시간까지 가능하며, 늦어지면 다음 대기자에게 자리가 넘어갈 수 있습니다
 그러니 잊지 말고 지금 바로 결제해 주세요
 수강을 원하지 않으시면 이 문자로 회신 주시면 다음 대기자에게 자리를 안내하겠습니다`,
   // 여석 안내 문자
@@ -70,7 +70,7 @@ const templates: Record<MessageType, string> = {
 수강을 원하시면 아래 링크에서 결제를 완료해 주세요(결제 시 자리 확정)
 {payment_url}
 
-안내 문자를 받은 뒤 24시간 이내에 결제해 주세요
+안내 문자를 받은 뒤 {payment_deadline_hours}시간 이내에 결제해 주세요
 수강을 원하지 않으시면 이 문자로 회신 주시면 대기 명단에서 정리해 드리겠습니다
 여석 안내는 순차적으로 발송되며 결제 완료 순으로 확정됩니다`,
   // 결제 전 자리 확보 문자 — 수업이 아직 한참 남아 결제 링크를 주지 않고 자리만 확보 안내(결제 링크는 D-7에 별도 발송)
@@ -167,6 +167,22 @@ async function fetchTemplateOverrides(messageType?: string): Promise<Record<stri
     return map;
   } catch (_) {
     return {};
+  }
+}
+
+// 운영 설정 조회(app_settings). 실패하면 null — 호출부에서 기본값으로 폴백.
+async function fetchAppSetting(key: string): Promise<string | null> {
+  const store = templateStore();
+  if (!store) return null;
+  try {
+    const res = await fetch(`${store.url}/rest/v1/app_settings?key=eq.${encodeURIComponent(key)}&select=value`, {
+      headers: { apikey: store.key, authorization: `Bearer ${store.key}` },
+    });
+    if (!res.ok) return null;
+    const rows = await res.json();
+    return Array.isArray(rows) && rows[0] && rows[0].value ? String(rows[0].value) : null;
+  } catch (_) {
+    return null;
   }
 }
 
@@ -364,7 +380,9 @@ serve(async (req) => {
     // 관리자가 저장해 둔 수정 템플릿이 있으면 그걸, 없으면 코드 기본 템플릿을 쓴다.
     const stored = await fetchTemplateOverrides(messageType);
     const template = stored[messageType] || templates[messageType];
-    const text = overrideText || fillTemplate(template, values);
+    // 결제 기한(시간)은 운영 설정에서 채운다 — {payment_deadline_hours} 치환용. 호출부 values가 있으면 우선.
+    const deadlineHours = (await fetchAppSetting('payment_deadline_hours')) || '24';
+    const text = overrideText || fillTemplate(template, { payment_deadline_hours: deadlineHours, ...values });
 
     // preview: 발송 없이 채워진 본문만 반환 — 관리자 발송 전 확인/수정용.
     if (body.preview) return jsonResponse({ ok: true, preview: true, messageType, text });
