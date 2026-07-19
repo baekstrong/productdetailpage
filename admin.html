@@ -116,7 +116,7 @@
           <button type="button" data-status-filter="confirmed" class="rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-slate-600 ring-1 ring-slate-200">확정</button>
           <button type="button" data-status-filter="waitlist" class="rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-slate-600 ring-1 ring-slate-200">대기</button>
           <button type="button" data-status-filter="cancelled" class="rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-slate-600 ring-1 ring-slate-200">취소</button>
-          <button type="button" data-status-filter="cancel-candidate" class="rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-slate-600 ring-1 ring-slate-200" title="다른 수업에서 결제 확정된 사람의 남은 신청">🚩 취소대상</button>
+          <button type="button" data-status-filter="cancel-candidate" class="rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-slate-600 ring-1 ring-slate-200" title="앞 날짜 수업에서 결제 확정된 사람의 뒤 수업 신청">🚩 취소대상</button>
         </div>
 
         <div id="bulk-action-bar" class="mt-5 flex flex-wrap items-center gap-2 rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-200">
@@ -436,19 +436,22 @@
       return label.indexOf('대기') === 0 ? 'waitlist' : 'firstcome';
     }
 
-    // 중복 등록 정리 후보: 같은 번호가 다른 수업에서 결제 확정됐는데, 이 신청은 아직 살아있는 경우.
+    // 중복 등록 정리 후보: 같은 번호가 "더 앞 날짜 수업"에서 결제 확정됐으면, 그보다 뒤 날짜의 살아있는 신청은 필요 없어진 것.
+    // (반대로 뒤 수업이 확정된 경우 앞 날짜 대기는 아직 유효할 수 있으므로 표시하지 않는다.)
     function isCancelCandidate(r) {
       if (r.reservation_status === 'cancelled' || r.reservation_status === 'no_show') return false;
       if (r.reservation_status === 'confirmed' || r.payment_status === 'paid') return false;
+      const myDate = String(classDateLabel(r.class_id));
       return (adminData.reservations || []).some((x) =>
         x.phone === r.phone && x.id !== r.id
         && x.reservation_status !== 'cancelled' && x.reservation_status !== 'no_show'
-        && (x.reservation_status === 'confirmed' || x.payment_status === 'paid'));
+        && (x.reservation_status === 'confirmed' || x.payment_status === 'paid')
+        && String(classDateLabel(x.class_id)) < myDate);
     }
 
     function cancelCandidateHtml(r) {
       if (!isCancelCandidate(r)) return '';
-      return ' <span class="ml-1 rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-bold text-rose-700" title="같은 번호가 다른 수업에서 결제 확정됨 — 이 신청은 정리(취소) 대상인지 확인하세요">취소대상</span>';
+      return ' <span class="ml-1 rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-bold text-rose-700" title="이 사람은 더 앞 날짜 수업에서 이미 결제 확정됨 — 이 뒤 수업 신청은 정리(취소) 대상인지 확인하세요">취소대상</span>';
     }
 
     // 구분 배지 — 수업별/전체 보기 공통(색·라벨 통일). 순위는 seatRankLabel(수업별 계산) 기준.
