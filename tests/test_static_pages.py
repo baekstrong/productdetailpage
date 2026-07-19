@@ -456,6 +456,12 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("messageText", admin_fn)
         self.assertIn("overrideText", admin_fn)
 
+        # 문자 없이 처리(silent): 취소 모달의 '문자 없이 처리' 버튼 → 문자 발송/예약 없이 상태만 변경(예약 문자 취소는 수행)
+        self.assertIn('id="sms-modal-silent"', admin)
+        self.assertIn("문자 없이 처리", admin)
+        self.assertIn("SEND_SILENT", admin)
+        self.assertIn("Boolean(body.silent)", admin_fn)
+
         # 문자 함수: preview는 발송 없이 본문만 반환, overrideText는 템플릿 대신 발송
         self.assertIn("body.preview", solapi)
         self.assertIn("overrideText", solapi)

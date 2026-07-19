@@ -587,7 +587,7 @@ async function resendMessage(classId: string, messageType: string, reservationId
   return { ok: true, sent };
 }
 
-async function updateReservation(reservationId: string, updates: Record<string, unknown>, notifyOverride?: string, messageText?: string) {
+async function updateReservation(reservationId: string, updates: Record<string, unknown>, notifyOverride?: string, messageText?: string, silent = false) {
   const allowedKeys = new Set(['reservation_status', 'payment_status', 'waitlist_order', 'admin_memo']);
   const safeUpdates: Record<string, unknown> = { updated_at: new Date().toISOString() };
   for (const [key, value] of Object.entries(updates || {})) {
@@ -609,37 +609,48 @@ async function updateReservation(reservationId: string, updates: Record<string, 
   if (updated && statusChanged) {
     // 분기 우선순위: 미결제 마감은 reservation_status='cancelled'+payment_status='expired'가
     // 한 번에 오므로 expired를 먼저 매칭한다(만료 안내만 발송, 일반 취소 문자는 보내지 않음).
+    // silent=true면 안내 문자 발송/예약은 건너뛰되, 걸려있던 예약 문자 취소 등 정리 작업은 그대로 수행한다.
     if (updated.payment_status === 'expired') {
-      const info = await classInfo(String(updated.class_id || ''));
-      await notify(updated, 'payment_expired', { class_date: info.label, place: info.place }, undefined, messageText);
+      if (!silent) {
+        const info = await classInfo(String(updated.class_id || ''));
+        await notify(updated, 'payment_expired', { class_date: info.label, place: info.place }, undefined, messageText);
+      }
       await cancelScheduledFollowups(String(updated.id));
     } else if (updated.payment_status === 'refunded') {
       // 환불 처리: cancelled+refunded가 한 번에 오므로 취소보다 먼저 매칭(환불 안내만 발송, 일반 취소 문자 X).
-      const info = await classInfo(String(updated.class_id || ''));
-      await notify(updated, 'payment_refunded', { class_date: info.label, place: info.place }, undefined, messageText);
+      if (!silent) {
+        const info = await classInfo(String(updated.class_id || ''));
+        await notify(updated, 'payment_refunded', { class_date: info.label, place: info.place }, undefined, messageText);
+      }
       await cancelScheduledFollowups(String(updated.id));
     } else if (updated.reservation_status === 'cancelled') {
-      const info = await classInfo(String(updated.class_id || ''));
-      await notify(updated, 'reservation_cancelled', { class_date: info.label, place: info.place }, undefined, messageText);
+      if (!silent) {
+        const info = await classInfo(String(updated.class_id || ''));
+        await notify(updated, 'reservation_cancelled', { class_date: info.label, place: info.place }, undefined, messageText);
+      }
       await cancelScheduledFollowups(String(updated.id));
     } else if (updated.reservation_status === 'payment_target' || updated.payment_status === 'sent') {
-      const info = await classInfo(String(updated.class_id || ''));
-      // 결제 전 자리 확보(seat_secured)는 결제 링크 없이 안내한다. 그 외엔 결제 링크 포함.
-      if (notifyOverride === 'seat_secured') {
-        await notify(updated, 'seat_secured', { class_date: info.label, place: info.place }, undefined, messageText);
-      } else {
-        const messageType = notifyOverride === 'seat_opened' ? 'seat_opened' : 'payment 안내';
-        await notify(updated, messageType, { class_date: info.label, place: info.place, payment_url: PAYMENT_LINK }, undefined, messageText);
-        // 결제 시계가 도는 안내(링크 포함)에는 기한 절반 시점 결제 리마인드를 예약한다.
-        await schedulePaymentReminder(updated, info.label);
+      if (!silent) {
+        const info = await classInfo(String(updated.class_id || ''));
+        // 결제 전 자리 확보(seat_secured)는 결제 링크 없이 안내한다. 그 외엔 결제 링크 포함.
+        if (notifyOverride === 'seat_secured') {
+          await notify(updated, 'seat_secured', { class_date: info.label, place: info.place }, undefined, messageText);
+        } else {
+          const messageType = notifyOverride === 'seat_opened' ? 'seat_opened' : 'payment 안내';
+          await notify(updated, messageType, { class_date: info.label, place: info.place, payment_url: PAYMENT_LINK }, undefined, messageText);
+          // 결제 시계가 도는 안내(링크 포함)에는 기한 절반 시점 결제 리마인드를 예약한다.
+          await schedulePaymentReminder(updated, info.label);
+        }
       }
     } else if (updated.reservation_status === 'confirmed' || updated.payment_status === 'paid') {
-      const info = await classInfo(String(updated.class_id || ''));
-      // 결제가 끝났으니 아직 안 나간 결제 리마인드는 취소한다.
+      // 결제가 끝났으니 아직 안 나간 결제 리마인드는 취소한다(문자 없이 처리해도 수행).
       await cancelScheduledFollowups(String(updated.id), ['payment_deadline_reminder']);
-      await notify(updated, 'payment_completed', { class_date: info.label, place: info.place }, undefined, messageText);
-      // 후속 리마인드/복습 예약 문자는 템플릿 그대로 예약 발송한다(수정 본문은 즉시 발송분에만 적용).
-      await scheduleFollowups(updated, info);
+      if (!silent) {
+        const info = await classInfo(String(updated.class_id || ''));
+        await notify(updated, 'payment_completed', { class_date: info.label, place: info.place }, undefined, messageText);
+        // 후속 리마인드/복습 예약 문자는 템플릿 그대로 예약 발송한다(수정 본문은 즉시 발송분에만 적용).
+        await scheduleFollowups(updated, info);
+      }
     }
   }
   return { ok: true, reservation: updated };
@@ -673,6 +684,7 @@ serve(async (req) => {
         body.updates || {},
         body.notify ? String(body.notify) : undefined,
         body.messageText ? String(body.messageText) : undefined,
+        Boolean(body.silent),
       ));
     }
     if (action === 'resendMessage') {
