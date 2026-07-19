@@ -487,8 +487,6 @@
         statusFilter === 'all' ? `${shown.length}명` : `${shown.length}명 / 전체 ${rows.length}명`;
       const thClassDate = document.querySelector('[data-th-class-date]');
       if (thClassDate) thClassDate.classList.toggle('hidden', !viewAll);
-      const bulkBar = document.getElementById('bulk-action-bar');
-      if (bulkBar) bulkBar.classList.toggle('hidden', viewAll);
       const capacity = classItem ? Number(classItem.capacity || 0) : 0;
       const confirmed = classItem ? Number(classItem.confirmed_count || 0) : 0;
       const paymentReady = classItem ? Number(classItem.payment_ready_count || 0) : 0;
@@ -496,7 +494,7 @@
       const hint = document.getElementById('bulk-approve-hint');
       if (hint) {
         hint.textContent = viewAll
-          ? '전체 수업의 신청자를 한눈에 봅니다. 상태 변경 등 일괄 처리는 수업별 보기에서 하세요.'
+          ? '전체 수업의 신청자를 한눈에 보고 처리할 수 있습니다. 문자가 나가는 처리는 같은 수업의 신청자끼리만 선택하세요.'
           : (classItem
             ? `예약 가능 인원 ${capacity}명 · 확정 ${confirmed}명 · 결제 안내 중 ${paymentReady}명 → 선착순 ${remaining}명 결제 안내 대상, 나머지 자동 대기`
             : '');
@@ -747,8 +745,8 @@
     // 발송 전 확인/수정 모달 — 서버에서 채워진 본문(previewMessage)을 받아 보여주고,
     // 관리자가 확인(필요 시 수정)한 본문을 반환한다. 취소하면 null을 반환해 발송 자체를 중단한다.
     // 확인된 본문은 messageText(override)로 서버에 전달되어 화면에 보인 그대로 발송된다.
-    async function confirmSmsBeforeSend(messageType, count, videoUrl, note) {
-      const preview = await callAdminApi('previewMessage', { classId: selectedClassId(), messageType, videoUrl });
+    async function confirmSmsBeforeSend(messageType, count, videoUrl, note, classId) {
+      const preview = await callAdminApi('previewMessage', { classId: classId || selectedClassId(), messageType, videoUrl });
       return await new Promise((resolve) => {
         const modal = document.getElementById('sms-modal');
         const textarea = document.getElementById('sms-modal-text');
@@ -1108,7 +1106,14 @@
         let messageText;
         const smsType = BULK_ACTION_MESSAGE_TYPE[action];
         if (smsType) {
-          messageText = await confirmSmsBeforeSend(smsType, ids.length, undefined, BULK_ACTION_NOTES[action]);
+          // 문자 본문에 수업 날짜가 들어가므로, 수업이 섞인 선택은 차단하고 미리보기는 선택자들의 수업 기준으로 띄운다.
+          const selectedRows = (adminData.reservations || []).filter((r) => ids.indexOf(r.id) !== -1);
+          const classIds = Array.from(new Set(selectedRows.map((r) => r.class_id)));
+          if (classIds.length > 1) {
+            message.textContent = '서로 다른 수업의 신청자가 섞여 있습니다. 문자가 나가는 처리는 같은 수업의 신청자끼리만 선택하세요.';
+            return;
+          }
+          messageText = await confirmSmsBeforeSend(smsType, ids.length, undefined, BULK_ACTION_NOTES[action], classIds[0]);
           if (messageText === null) { message.textContent = '문자 발송을 취소해 처리를 중단했습니다.'; return; }
         }
         message.textContent = `선택한 ${ids.length}명을 처리하는 중입니다.`;

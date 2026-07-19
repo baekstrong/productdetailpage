@@ -553,6 +553,8 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("reservationCategory", admin)
         self.assertIn("data-th-class-date", admin)
         self.assertIn("allReservationsSorted", admin)
+        # 전체 보기에서도 일괄 처리 가능 — 단 문자 나가는 처리는 같은 수업끼리만(수업 혼재 선택 차단)
+        self.assertIn("같은 수업의 신청자끼리만 선택하세요", admin)
 
         # 환불: 공개 페이지 환불 규정 + 관리자 환불 처리 버튼(취소+환불 기록+환불 안내 문자)
         self.assertIn("Q. 결제 후 환불 규정은 어떻게 되나요?", html)
