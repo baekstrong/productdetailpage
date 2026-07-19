@@ -549,6 +549,11 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("접수 문자에 결제 링크가 바로", html)
         self.assertNotIn("수업 일주일 전에 발송됩니다", html)
 
+        # 남은 자리 = 정원 - (확정 + 결제 안내 중): 공개 뷰·관리자 집계 공통(결제 안내 중이 자리 점유)
+        schema = read_page("supabase/schema.sql")
+        self.assertIn("r.reservation_status in ('confirmed', 'payment_target') or r.payment_status = 'paid'", schema)
+        self.assertIn("confirmed - paymentReady", admin_fn)
+
         # 수강생 검색(모든 수업 대상, 이름/전화) — 결제자 대조용
         self.assertIn('id="reservation-search"', admin)
         self.assertIn("searchReservations", admin)

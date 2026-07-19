@@ -277,7 +277,8 @@ async function listAdminData() {
       preview_before_open: c.preview_before_open === true,
       is_open: c.open_at ? (new Date(String(c.open_at)).getTime() <= Date.now()) : true,
       confirmed_count: confirmed,
-      available_count: Math.max(Number(c.capacity || 0) - confirmed, 0),
+      // 남은 자리 = 정원 - 자리 점유자(확정 + 결제 안내 중) — 공개 뷰(class_reservation_summary)와 동일 기준.
+      available_count: Math.max(Number(c.capacity || 0) - confirmed - paymentReady, 0),
       waitlist_count: waitlist,
       payment_ready_count: paymentReady,
     };

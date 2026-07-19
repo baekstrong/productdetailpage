@@ -68,7 +68,8 @@ select
   c.is_public,
   c.status,
   count(r.id) filter (where (r.reservation_status = 'confirmed' or r.payment_status = 'paid') and r.reservation_status not in ('cancelled', 'no_show')) as confirmed_count,
-  greatest(c.capacity - count(r.id) filter (where (r.reservation_status = 'confirmed' or r.payment_status = 'paid') and r.reservation_status not in ('cancelled', 'no_show')), 0) as available_count,
+  -- 남은 자리 = 정원 - 자리 점유자(확정 + 결제 안내 중). 즉시 결제 체제에서 payment_target은 자리를 점유한다.
+  greatest(c.capacity - count(r.id) filter (where r.reservation_status not in ('cancelled', 'no_show') and (r.reservation_status in ('confirmed', 'payment_target') or r.payment_status = 'paid')), 0) as available_count,
   count(r.id) filter (where r.reservation_status in ('applied', 'waitlisted')) as waitlist_count,
   count(r.id) filter (where r.reservation_status = 'payment_target') as payment_ready_count,
   c.open_at,
