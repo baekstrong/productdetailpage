@@ -613,6 +613,11 @@ async function updateReservation(reservationId: string, updates: Record<string, 
       const info = await classInfo(String(updated.class_id || ''));
       await notify(updated, 'payment_expired', { class_date: info.label, place: info.place }, undefined, messageText);
       await cancelScheduledFollowups(String(updated.id));
+    } else if (updated.payment_status === 'refunded') {
+      // 환불 처리: cancelled+refunded가 한 번에 오므로 취소보다 먼저 매칭(환불 안내만 발송, 일반 취소 문자 X).
+      const info = await classInfo(String(updated.class_id || ''));
+      await notify(updated, 'payment_refunded', { class_date: info.label, place: info.place }, undefined, messageText);
+      await cancelScheduledFollowups(String(updated.id));
     } else if (updated.reservation_status === 'cancelled') {
       const info = await classInfo(String(updated.class_id || ''));
       await notify(updated, 'reservation_cancelled', { class_date: info.label, place: info.place }, undefined, messageText);

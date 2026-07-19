@@ -116,6 +116,7 @@
           <button type="button" data-bulk-action="seat-opened" class="rounded-lg bg-sky-100 px-3 py-2 text-sm font-bold text-sky-700">여석 안내 (결제 링크 O)</button>
           <button type="button" data-bulk-action="seat-secured" class="rounded-lg bg-teal-100 px-3 py-2 text-sm font-bold text-teal-700">여석 안내 (결제 링크 X)</button>
           <button type="button" data-bulk-action="payment-expired" class="rounded-lg bg-amber-100 px-3 py-2 text-sm font-bold text-amber-700">미결제 마감</button>
+          <button type="button" data-bulk-action="refund" class="rounded-lg bg-fuchsia-100 px-3 py-2 text-sm font-bold text-fuchsia-700" title="스마트스토어에서 환불 승인한 뒤 누르세요 — 예약 취소 + 결제 상태 '환불' 기록 + 환불 안내 문자">환불 처리</button>
           <button type="button" data-bulk-action="cancel" class="rounded-lg bg-slate-200 px-3 py-2 text-sm font-bold text-slate-700">취소 처리</button>
           <button type="button" id="block-phone-button" class="rounded-lg bg-rose-100 px-3 py-2 text-sm font-bold text-rose-700" title="예약을 조용히 취소하고(문자 없음) 이 번호의 향후 신청을 차단합니다">🚫 예약 거부(차단)</button>
           <button type="button" id="custom-sms-button" class="rounded-lg bg-violet-100 px-3 py-2 text-sm font-bold text-violet-700" title="상태 변경 없이 직접 쓴 문자만 보냅니다">✉️ 직접 작성 문자 보내기</button>
@@ -637,7 +638,7 @@
 
     const SMS_TYPE_LABELS = {
       'payment 안내': '결제 안내 문자', seat_opened: '여석 안내 문자(결제 링크 O)', seat_secured: '자리 확보 문자(결제 링크 X)',
-      payment_completed: '결제 완료 문자', payment_expired: '미결제 마감 문자', reservation_cancelled: '예약 취소 안내 문자',
+      payment_completed: '결제 완료 문자', payment_expired: '미결제 마감 문자', payment_refunded: '환불 안내 문자', reservation_cancelled: '예약 취소 안내 문자',
       class_reminder: '수업 전 리마인드 문자', review_material: '수업 후 복습 자료 문자', review_video: '복습 영상 안내 문자',
       reservation_received: '예약 신청 완료 문자', custom: '직접 작성 문자',
       reservation_success: '접수 문자(정원 내·결제 링크 포함)', reservation_waitlist: '접수 문자(대기)', admin_payment_reminder: '운영자 결제 리마인더(D-7)',
@@ -1024,6 +1025,7 @@
       'payment-complete': { reservation_status: 'confirmed', payment_status: 'paid' },
       waitlist: { reservation_status: 'waitlisted' },
       'payment-expired': { reservation_status: 'cancelled', payment_status: 'expired' },
+      refund: { reservation_status: 'cancelled', payment_status: 'refunded' },
       cancel: { reservation_status: 'cancelled' }
     };
 
@@ -1034,11 +1036,13 @@
       'seat-secured': 'seat_secured',
       'payment-complete': 'payment_completed',
       'payment-expired': 'payment_expired',
+      refund: 'payment_refunded',
       cancel: 'reservation_cancelled'
     };
 
     // 모달 안에 함께 보여줄 액션별 처리 결과 안내(별도 확인창 없이 모달 한 번으로 확인 끝).
     const BULK_ACTION_NOTES = {
+      refund: '⚠️ 예약이 취소되고 결제 상태가 환불로 기록되며 아래 문자가 발송됩니다. 실제 환불은 스마트스토어에서 별도로 승인해야 합니다.',
       'payment-target': '선택 인원이 결제 안내 대상으로 지정되고 아래 문자가 발송됩니다.',
       'seat-opened': '선택 인원이 결제 안내 대상으로 전환되고 아래 여석 안내 문자가 발송됩니다.',
       'seat-secured': '자리를 즉시 점유하며(결제 시계는 안 돌아감) 아래 문자가 발송됩니다. 결제 링크는 수업 1주일 전에 따로 보냅니다.',

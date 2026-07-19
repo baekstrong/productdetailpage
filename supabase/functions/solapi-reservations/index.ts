@@ -13,6 +13,7 @@ type MessageType =
   | 'seat_opened'
   | 'seat_secured'
   | 'payment_completed'
+  | 'payment_refunded'
   | 'payment_expired'
   | 'class_reminder'
   | 'review_material'
@@ -95,6 +96,14 @@ const templates: Record<MessageType, string> = {
 장소: {place}(https://naver.me/xiqDtNuY)
 
 수업 전날 준비물과 장소 안내 문자를 한 번 더 보내드립니다`,
+  // 환불 처리 안내 문자 — 스마트스토어에서 환불 승인 후 관리자가 '환불 처리' 버튼으로 발송
+  payment_refunded: `케틀벨 원데이 수업 환불 처리되었습니다
+
+수업 일정: {class_date}
+
+결제하신 수단으로 환불이 진행되며, 카드사에 따라 며칠 걸릴 수 있습니다
+다시 수강을 원하시면 예약 페이지에서 신청해 주세요
+좋은 일정으로 다시 만나 뵙겠습니다`,
   // 미결제 마감(기한 만료) 안내 문자
   payment_expired: `케틀벨 원데이 수업 예약 안내드립니다
 

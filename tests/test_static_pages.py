@@ -546,6 +546,15 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("searchReservations", admin)
         self.assertIn("data-search-goto", admin)
 
+        # 환불: 공개 페이지 환불 규정 + 관리자 환불 처리 버튼(취소+환불 기록+환불 안내 문자)
+        self.assertIn("Q. 결제 후 환불 규정은 어떻게 되나요?", html)
+        self.assertIn("수업 시작 전 취소는 전액 환불", html)
+        self.assertIn('data-bulk-action="refund"', admin)
+        self.assertIn("payment_refunded", admin)
+        self.assertIn("payment_refunded", solapi)
+        self.assertIn("환불 처리되었습니다", solapi)
+        self.assertIn("payment_refunded", admin_fn)
+
     def test_payment_reminder_function(self):
         fn = read_page("supabase/functions/payment-reminder/index.ts")
         self.assertIn("SUPABASE_SERVICE_ROLE_KEY", fn)
