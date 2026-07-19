@@ -19,6 +19,7 @@ type MessageType =
   | 'review_video'
   | 'reservation_cancelled'
   | 'admin_payment_reminder'
+  | 'payment_deadline_reminder'
   | 'custom';
 
 const templates: Record<MessageType, string> = {
@@ -30,15 +31,18 @@ const templates: Record<MessageType, string> = {
 
 해당 날짜 모집이 열리면 대기 순서에 따라 결제 안내 문자를 보내드립니다
 결제까지 완료되어야 수업 자리가 확정됩니다`,
-  // 접수 문자 — 신청 시점에 정원 내인 경우(선착순 성공)
+  // 접수 문자 — 신청 시점에 정원 내인 경우(선착순). 즉시 결제 전환: 결제 링크를 바로 안내한다.
   reservation_success: `케틀벨 원데이 수업 수강 신청이 접수되었습니다
 
 수업 일정: {class_date}
 정원: 6명
 
-현재 정원 내 신청으로 접수되었습니다
-결제 링크는 수업 약 1주일 전에 문자로 보내드립니다
-문자의 링크에서 결제까지 완료되어야 수업 자리가 확정됩니다`,
+현재 정원 내 신청입니다
+아래 링크에서 결제를 완료하시면 자리가 확정됩니다(결제 완료 순 확정)
+{payment_url}
+
+결제는 안내 후 {payment_deadline_hours}시간까지 가능하며, 기한이 지나면 신청이 취소되고 다음 분께 자리가 안내됩니다
+수강이 어려우시면 이 문자로 회신 주세요`,
   // 접수 문자 — 신청 시점에 만석인 경우(대기)
   reservation_waitlist: `케틀벨 원데이 수업 수강 대기 신청이 완료되었습니다
 
@@ -46,8 +50,8 @@ const templates: Record<MessageType, string> = {
 
 현재 정원이 모두 차서 대기 {waitlist_rank}순위로 접수되었습니다
 (현재 기준이며, 앞 신청자가 취소하면 순번은 앞당겨집니다)
-여석이 생겨 신청이 승인되면 결제 링크를 문자로 보내드립니다
-결제 링크는 보통 수업 1주일 전에 발송되며 결제까지 완료해야 자리가 확정됩니다`,
+여석이 생기면 대기 순서대로 결제 안내 문자를 보내드립니다
+문자의 링크에서 결제까지 완료해야 자리가 확정됩니다`,
   // 결제 안내 문자
   'payment 안내': `케틀벨 원데이 수업 결제 안내드립니다
 
@@ -134,6 +138,18 @@ https://www.notion.so/easystrength/Part-2-9910eb46d55f40efad4f986986f5876d?sourc
   admin_payment_reminder: `[케틀벨 원데이 리마인더]
 {class_label} 수업이 7일 앞입니다.
 현재 신청 {count}명 — 선착순 승인하고 결제 안내를 보내주세요.`,
+  // 결제 기한 임박 리마인드 — 결제 안내 발송 시 기한의 절반 시점으로 예약 발송된다(결제/취소 시 자동 취소).
+  payment_deadline_reminder: `케틀벨 원데이 수업 결제 리마인드입니다
+
+결제 기한이 약 {remaining_hours}시간 남았습니다
+기한이 지나면 신청이 취소되고 다음 분께 자리가 안내됩니다
+
+{payment_url}
+
+수업 일정: {class_date}
+
+이미 결제하셨다면 이 문자는 무시해 주세요
+수강이 어려우시면 이 문자로 회신 주세요`,
   // 직접 작성 문자 — 템플릿 없이 관리자가 쓴 본문(overrideText)을 그대로 발송한다.
   custom: '',
 };

@@ -8,8 +8,11 @@ const corsHeaders = {
   'access-control-allow-headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// 결제 링크(즉시 결제 전환: 정원 내 신청 접수 문자에 바로 포함된다).
+const PAYMENT_LINK = Deno.env.get('PAYMENT_LINK') || 'https://smartstore.naver.com/easystrength101/products/9825334073';
+
 // 같은 수업 재신청 차단 문구.
-const SAME_CLASS_MESSAGE = '이미 이 수업에 신청되어 있습니다. 결제 안내 문자를 기다려 주세요.';
+const SAME_CLASS_MESSAGE = '이미 이 수업에 신청되어 있습니다. 결제 안내 문자를 확인해 주세요.';
 // 다른 수업의 '선착순 자리'는 한 번호당 1건만 — 대기 신청은 날짜별로 따로 허용.
 const SEAT_DUP_MESSAGE = '이미 신청하신 수업이 있어, 다른 수업의 선착순 자리는 신청할 수 없습니다. 자리가 찬 수업은 대기로 신청하실 수 있어요.';
 
@@ -78,17 +81,15 @@ function isPastClassKst(classDate: string, startTime: string): boolean {
   return start.getTime() < Date.now();
 }
 
-// 접수 문자 발송 — messageType은 자리 상황에 따라 reservation_success(정원 내) 또는 reservation_waitlist(만석).
-async function sendReceivedSms(reservationId: string, phone: string, classLabel: string, messageType: string, waitlistRank?: number) {
+// 문자 발송 + message_logs 기록 (베스트 에포트). scheduledAt이 있으면 Solapi 예약 발송으로 등록한다.
+async function sendSmsAndLog(reservationId: string, phone: string, messageType: string, values: Record<string, string>, scheduledAt?: string) {
   const { url, serviceKey } = getSupabaseAdmin();
   let result: Record<string, unknown> = { ok: false, error: 'send failed' };
   try {
-    const values: Record<string, string> = { class_date: classLabel };
-    if (waitlistRank && waitlistRank > 0) values.waitlist_rank = String(waitlistRank); // 대기 접수 문자에만 순위 채움
     const response = await fetch(`${url}/functions/v1/solapi-reservations`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', apikey: serviceKey, authorization: `Bearer ${serviceKey}` },
-      body: JSON.stringify({ messageType, phone, values }),
+      body: JSON.stringify({ messageType, phone, values, scheduledAt }),
     });
     result = await response.json().catch(() => ({ ok: false, error: 'invalid solapi response' }));
   } catch (error) {
@@ -104,14 +105,33 @@ async function sendReceivedSms(reservationId: string, phone: string, classLabel:
         message_type: messageType,
         phone_masked: maskPhone(phone),
         provider_message_id: (result && ((result.groupId as string) || (result.messageId as string))) || null,
-        status: ok ? 'sent' : (result && result.skipped ? 'skipped' : 'failed'),
+        status: ok ? (scheduledAt ? 'scheduled' : 'sent') : (result && result.skipped ? 'skipped' : 'failed'),
         error_message: ok ? null : ((result && (result.error || result.reason)) as string) || null,
+        scheduled_at: scheduledAt || null,
         sent_at: new Date().toISOString(),
       }),
     });
   } catch (_) {
     // 로깅 실패는 무시(베스트 에포트)
   }
+}
+
+// 결제 기한(시간) 설정 조회 — 실패 시 기본 24.
+async function getDeadlineHours(): Promise<number> {
+  try {
+    const rows = await supabaseFetch('app_settings?key=eq.payment_deadline_hours&select=value');
+    const n = Array.isArray(rows) && rows[0] ? Number(rows[0].value) : NaN;
+    return Number.isInteger(n) && n > 0 ? n : 24;
+  } catch (_) {
+    return 24;
+  }
+}
+
+// 지금부터 h시간 뒤를 Solapi 예약 발송 형식(KST ISO8601)으로.
+function kstAfterHours(hours: number): string {
+  const t = new Date(Date.now() + hours * 3600 * 1000 + 9 * 3600 * 1000);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${t.getUTCFullYear()}-${p(t.getUTCMonth() + 1)}-${p(t.getUTCDate())}T${p(t.getUTCHours())}:${p(t.getUTCMinutes())}:00+09:00`;
 }
 
 serve(async (req) => {
@@ -180,6 +200,8 @@ serve(async (req) => {
       }
     }
 
+    // 즉시 결제 전환: 정원 내 신청은 바로 '결제 안내 중'(payment_target+sent)으로 자리를 점유하고
+    // 접수 문자에 결제 링크를 함께 보낸다. 대기는 기존처럼 무료(waitlisted).
     const created = await supabaseFetch('reservations', {
       method: 'POST',
       headers: { prefer: 'return=representation' },
@@ -189,19 +211,32 @@ serve(async (req) => {
         phone,
         kettlebell_experience: experience || null,
         reason: reason || null,
-        reservation_status: willWaitlist ? 'waitlisted' : 'applied', // 신청 시점 판정을 상태에 반영
+        reservation_status: willWaitlist ? 'waitlisted' : 'payment_target', // 신청 시점 판정을 상태에 반영
+        payment_status: willWaitlist ? 'pending' : 'sent', // 정원 내는 결제 안내 발송 상태(결제 시계 시작)
       }),
     });
     const reservation = Array.isArray(created) ? created[0] : created;
 
-    // 접수 문자 분기 — 위에서 판정한 선착순/대기 그대로.
-    const messageType = willWaitlist ? 'reservation_waitlist' : 'reservation_success';
-
     // 접수 확인 문자(베스트 에포트 — 실패해도 신청 자체는 성공으로 응답).
     const classLabel = formatSchedule(String(classRow.class_date), String(classRow.start_time), String(classRow.end_time));
-    // 대기로 접수된 경우 신청 시점 순위(= 본인 제외 활성 - 정원 + 1)를 함께 넘긴다.
-    const waitlistRank = willWaitlist ? (activeCount - capacity + 1) : undefined;
-    if (reservation && reservation.id) await sendReceivedSms(String(reservation.id), phone, classLabel, messageType, waitlistRank);
+    if (reservation && reservation.id) {
+      if (willWaitlist) {
+        // 대기 접수 문자 — 신청 시점 순위(= 본인 제외 활성 - 정원 + 1) 포함.
+        const waitlistRank = activeCount - capacity + 1;
+        const values: Record<string, string> = { class_date: classLabel };
+        if (waitlistRank > 0) values.waitlist_rank = String(waitlistRank);
+        await sendSmsAndLog(String(reservation.id), phone, 'reservation_waitlist', values);
+      } else {
+        // 정원 내 접수 문자(결제 링크 포함) + 기한 절반 시점에 결제 리마인드 예약 발송.
+        await sendSmsAndLog(String(reservation.id), phone, 'reservation_success', { class_date: classLabel, payment_url: PAYMENT_LINK });
+        const deadline = await getDeadlineHours();
+        await sendSmsAndLog(String(reservation.id), phone, 'payment_deadline_reminder', {
+          class_date: classLabel,
+          payment_url: PAYMENT_LINK,
+          remaining_hours: String(Math.ceil(deadline / 2)),
+        }, kstAfterHours(deadline / 2));
+      }
+    }
 
     return jsonResponse({ ok: true });
   } catch (error) {

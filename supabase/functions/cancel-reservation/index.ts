@@ -66,6 +66,37 @@ function formatSchedule(dateStr: string, startTime: string, endTime: string): st
   return `${yy}년 ${month}월 ${day}일 ${timeText}`;
 }
 
+// 본인 취소 시 이 예약에 걸려있는 예약 발송 문자(결제 리마인드·수업 리마인드·복습)를 Solapi에서 취소한다(베스트 에포트).
+async function cancelScheduledMessages(reservationId: string) {
+  try {
+    const rows = await supabaseFetch(`message_logs?reservation_id=eq.${encodeURIComponent(reservationId)}&status=eq.scheduled&select=id,provider_message_id`);
+    if (!Array.isArray(rows)) return;
+    const { url, serviceKey } = getSupabaseAdmin();
+    for (const row of rows) {
+      const groupId = String(row.provider_message_id || '');
+      let cancelled = !groupId;
+      if (groupId) {
+        try {
+          const res = await fetch(`${url}/functions/v1/solapi-reservations`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', apikey: serviceKey, authorization: `Bearer ${serviceKey}` },
+            body: JSON.stringify({ cancelGroupId: groupId }),
+          });
+          const result = await res.json().catch(() => ({ ok: false }));
+          cancelled = Boolean(result && result.ok);
+        } catch (_) { /* 아래에서 cancel_failed로 기록 */ }
+      }
+      await supabaseFetch(`message_logs?id=eq.${encodeURIComponent(String(row.id))}`, {
+        method: 'PATCH',
+        headers: { prefer: 'return=minimal' },
+        body: JSON.stringify(cancelled ? { status: 'cancelled' } : { status: 'cancel_failed' }),
+      });
+    }
+  } catch (_) {
+    // 취소 실패는 무시(베스트 에포트) — 최악의 경우 리마인드 문자가 한 통 더 갈 뿐 데이터 손상은 없다.
+  }
+}
+
 // 취소 안내 문자(베스트 에포트 — 실패해도 취소 자체는 성공).
 async function sendCancelledSms(reservationId: string, phone: string, classLabel: string) {
   const { url, serviceKey } = getSupabaseAdmin();
@@ -137,6 +168,7 @@ serve(async (req) => {
 
     const c = (row.class || {}) as Record<string, string>;
     const classLabel = formatSchedule(c.class_date, c.start_time, c.end_time);
+    await cancelScheduledMessages(String(row.id));
     await sendCancelledSms(String(row.id), phone, classLabel);
 
     return jsonResponse({ ok: true });
