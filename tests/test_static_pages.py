@@ -461,6 +461,8 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("문자 없이 처리", admin)
         self.assertIn("SEND_SILENT", admin)
         self.assertIn("Boolean(body.silent)", admin_fn)
+        # 본문 무수정 발송은 override 없이 서버 템플릿(수신자별 수업 일정)으로 — 수업 혼재 선택 지원
+        self.assertIn("SEND_TEMPLATE", admin)
 
         # 문자 함수: preview는 발송 없이 본문만 반환, overrideText는 템플릿 대신 발송
         self.assertIn("body.preview", solapi)
