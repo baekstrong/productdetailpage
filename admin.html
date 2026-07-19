@@ -116,6 +116,7 @@
           <button type="button" data-status-filter="confirmed" class="rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-slate-600 ring-1 ring-slate-200">확정</button>
           <button type="button" data-status-filter="waitlist" class="rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-slate-600 ring-1 ring-slate-200">대기</button>
           <button type="button" data-status-filter="cancelled" class="rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-slate-600 ring-1 ring-slate-200">취소</button>
+          <button type="button" data-status-filter="cancel-candidate" class="rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-slate-600 ring-1 ring-slate-200" title="다른 수업에서 결제 확정된 사람의 남은 신청">🚩 취소대상</button>
         </div>
 
         <div id="bulk-action-bar" class="mt-5 flex flex-wrap items-center gap-2 rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-200">
@@ -435,6 +436,21 @@
       return label.indexOf('대기') === 0 ? 'waitlist' : 'firstcome';
     }
 
+    // 중복 등록 정리 후보: 같은 번호가 다른 수업에서 결제 확정됐는데, 이 신청은 아직 살아있는 경우.
+    function isCancelCandidate(r) {
+      if (r.reservation_status === 'cancelled' || r.reservation_status === 'no_show') return false;
+      if (r.reservation_status === 'confirmed' || r.payment_status === 'paid') return false;
+      return (adminData.reservations || []).some((x) =>
+        x.phone === r.phone && x.id !== r.id
+        && x.reservation_status !== 'cancelled' && x.reservation_status !== 'no_show'
+        && (x.reservation_status === 'confirmed' || x.payment_status === 'paid'));
+    }
+
+    function cancelCandidateHtml(r) {
+      if (!isCancelCandidate(r)) return '';
+      return ' <span class="ml-1 rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-bold text-rose-700" title="같은 번호가 다른 수업에서 결제 확정됨 — 이 신청은 정리(취소) 대상인지 확인하세요">취소대상</span>';
+    }
+
     // 구분 배지 — 수업별/전체 보기 공통(색·라벨 통일). 순위는 seatRankLabel(수업별 계산) 기준.
     // 색: 확정=초록, 결제 안내 중=주황, 선착순(신청·확보)=청록, 대기=파랑, 취소=회색.
     function globalBadgeHtml(r) {
@@ -445,7 +461,7 @@
         : cat === 'waitlist' ? 'bg-blue-100 text-blue-700'
         : cat === 'cancelled' ? 'bg-slate-100 text-slate-500'
         : 'bg-teal-100 text-teal-700';
-      return `<span class="rounded-full ${tone} px-2 py-0.5 text-xs font-bold">${escapeHtml(label)}</span>` + (cat === 'payment' ? paymentOverdueHtml(r) : '');
+      return `<span class="rounded-full ${tone} px-2 py-0.5 text-xs font-bold">${escapeHtml(label)}</span>` + (cat === 'payment' ? paymentOverdueHtml(r) : '') + cancelCandidateHtml(r);
     }
 
     // 전체 보기 정렬: 수업일 → 신청 시간순.
@@ -482,8 +498,10 @@
 
     function renderReservations(rows, classItem) {
       const body = document.getElementById('reservation-rows');
-      // 상태 필터 적용(수업별/전체 보기 공통). 순위 계산은 필터 전(rows) 기준으로 유지한다.
-      const shown = statusFilter === 'all' ? rows : rows.filter((r) => reservationCategory(r) === statusFilter);
+      // 상태 필터 적용(수업별/전체 보기 공통). '취소대상'은 상태와 무관한 별도 조건 필터.
+      const shown = statusFilter === 'all' ? rows
+        : statusFilter === 'cancel-candidate' ? rows.filter(isCancelCandidate)
+        : rows.filter((r) => reservationCategory(r) === statusFilter);
       document.getElementById('reservation-count').textContent =
         statusFilter === 'all' ? `${shown.length}명` : `${shown.length}명 / 전체 ${rows.length}명`;
       const thClassDate = document.querySelector('[data-th-class-date]');
