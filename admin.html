@@ -102,6 +102,11 @@
           </div>
         </div>
 
+        <div class="mt-5">
+          <input id="reservation-search" type="search" placeholder="🔍 수강생 검색 — 이름 또는 전화번호 (모든 수업 대상)" class="w-full sm:w-96 rounded-xl border border-slate-300 px-4 py-2.5 text-sm" />
+          <div id="reservation-search-results" class="mt-2 hidden rounded-2xl bg-slate-50 p-2 ring-1 ring-slate-200"></div>
+        </div>
+
         <div class="mt-5 flex flex-wrap items-center gap-2 rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-200">
           <span id="selected-count" class="mr-1 text-sm font-bold text-slate-700">선택 0명</span>
           <span class="mr-1 text-xs text-slate-400">선택한 신청자에게 적용 →</span>
@@ -793,6 +798,37 @@
       }
     }
 
+    // --- 수강생 검색 (모든 수업 대상, 이름/전화번호) — 스마트스토어 결제자 대조용 ---
+    function searchReservations(query) {
+      const q = String(query || '').trim();
+      if (!q) return [];
+      const digits = q.replace(/[^0-9]/g, '');
+      return (adminData.reservations || []).filter((r) => {
+        const byName = String(r.applicant_name || '').includes(q);
+        const byPhone = digits.length >= 2 && String(r.phone || '').includes(digits);
+        return byName || byPhone;
+      }).sort((a, b) => String(classDateLabel(a.class_id)).localeCompare(String(classDateLabel(b.class_id))));
+    }
+
+    function renderSearchResults() {
+      const input = document.getElementById('reservation-search');
+      const box = document.getElementById('reservation-search-results');
+      if (!input || !box) return;
+      const q = input.value;
+      if (!q.trim()) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+      const rows = searchReservations(q);
+      box.classList.remove('hidden');
+      if (!rows.length) { box.innerHTML = '<p class="p-3 text-sm text-slate-400">검색 결과가 없습니다.</p>'; return; }
+      box.innerHTML = `<p class="px-3 py-1 text-xs font-bold text-slate-500">검색 결과 ${rows.length}건 — 클릭하면 해당 수업으로 이동해 그 신청자를 선택합니다</p>`
+        + rows.map((r) => `
+        <button type="button" data-search-goto="${escapeHtml(r.id)}" data-search-class="${escapeHtml(r.class_id)}" class="flex w-full flex-wrap items-center gap-x-3 gap-y-1 rounded-xl px-3 py-2 text-left text-sm hover:bg-white">
+          <span class="font-bold text-slate-800">${escapeHtml(r.applicant_name)}</span>
+          <span class="text-slate-500">${escapeHtml(r.phone)}</span>
+          <span class="text-slate-400">${escapeHtml(classDateLabel(r.class_id))} 수업</span>
+          <span class="ml-auto text-xs font-bold text-slate-600">${escapeHtml(seatRankLabel(r) || statusLabels[r.reservation_status] || r.reservation_status)}</span>
+        </button>`).join('');
+    }
+
     function renderAdminData() {
       const allIds = adminData.classes.map((c) => c.class_id);
       // 선택값이 없거나 사라진 수업이면 기본값을 가장 가까운 다음 일정으로(없으면 첫 수업).
@@ -804,6 +840,7 @@
       renderSummary(currentClass);
       renderReservations(reservationsForSelectedClass(), currentClass);
       renderMessageStatus();
+      renderSearchResults(); // 데이터 갱신 후 열려있는 검색 결과도 최신화
       renderClassManager(adminData.classes); // 선택 하이라이트 갱신 위해 표도 다시 렌더
       renderAdminCalendar();
     }
@@ -1126,6 +1163,23 @@
         await loadAdminData();
       } catch (error) {
         document.getElementById('admin-message').textContent = `메모 저장 실패: ${error.message}`;
+      }
+    });
+    document.getElementById('reservation-search').addEventListener('input', renderSearchResults);
+    document.getElementById('reservation-search-results').addEventListener('click', (event) => {
+      const btn = event.target.closest('[data-search-goto]');
+      if (!btn) return;
+      setSelectedClass(btn.dataset.searchClass); // 해당 수업으로 전환(표 재렌더)
+      const check = document.querySelector(`[data-reservation-check][value="${btn.dataset.searchGoto}"]`);
+      if (check) {
+        check.checked = true;
+        updateSelectedCount();
+        const tr = check.closest('tr');
+        if (tr) {
+          tr.classList.add('bg-yellow-50');
+          tr.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          setTimeout(() => tr.classList.remove('bg-yellow-50'), 3000);
+        }
       }
     });
     document.getElementById('select-all-reservations').addEventListener('change', (event) => {

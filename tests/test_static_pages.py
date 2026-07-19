@@ -541,6 +541,11 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("접수 문자에 결제 링크가 바로", html)
         self.assertNotIn("수업 일주일 전에 발송됩니다", html)
 
+        # 수강생 검색(모든 수업 대상, 이름/전화) — 결제자 대조용
+        self.assertIn('id="reservation-search"', admin)
+        self.assertIn("searchReservations", admin)
+        self.assertIn("data-search-goto", admin)
+
     def test_payment_reminder_function(self):
         fn = read_page("supabase/functions/payment-reminder/index.ts")
         self.assertIn("SUPABASE_SERVICE_ROLE_KEY", fn)
