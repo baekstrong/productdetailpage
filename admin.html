@@ -107,7 +107,18 @@
           <div id="reservation-search-results" class="mt-2 hidden rounded-2xl bg-slate-50 p-2 ring-1 ring-slate-200"></div>
         </div>
 
-        <div class="mt-5 flex flex-wrap items-center gap-2 rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-200">
+        <div class="mt-4 flex flex-wrap items-center gap-2">
+          <button id="view-all-toggle" type="button" class="rounded-xl bg-slate-800 px-4 py-2 text-sm font-bold text-white">📋 전체 수강생 보기</button>
+          <span class="ml-2 text-xs font-bold text-slate-500">상태 필터:</span>
+          <button type="button" data-status-filter="all" class="rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-bold text-white ring-1 ring-slate-200">전체</button>
+          <button type="button" data-status-filter="firstcome" class="rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-slate-600 ring-1 ring-slate-200">선착순</button>
+          <button type="button" data-status-filter="payment" class="rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-slate-600 ring-1 ring-slate-200">결제 안내 중</button>
+          <button type="button" data-status-filter="confirmed" class="rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-slate-600 ring-1 ring-slate-200">확정</button>
+          <button type="button" data-status-filter="waitlist" class="rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-slate-600 ring-1 ring-slate-200">대기</button>
+          <button type="button" data-status-filter="cancelled" class="rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-slate-600 ring-1 ring-slate-200">취소</button>
+        </div>
+
+        <div id="bulk-action-bar" class="mt-5 flex flex-wrap items-center gap-2 rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-200">
           <span id="selected-count" class="mr-1 text-sm font-bold text-slate-700">선택 0명</span>
           <span class="mr-1 text-xs text-slate-400">선택한 신청자에게 적용 →</span>
           <button type="button" data-bulk-action="payment-target" class="rounded-lg bg-orange-100 px-3 py-2 text-sm font-bold text-orange-700">결제 안내 대상으로 지정</button>
@@ -128,6 +139,7 @@
               <tr>
                 <th class="p-3"><input type="checkbox" id="select-all-reservations" aria-label="전체 선택" /></th>
                 <th class="p-3">신청 순번</th>
+                <th data-th-class-date class="p-3 hidden">수업일</th>
                 <th class="p-3">구분</th>
                 <th class="p-3">이름</th>
                 <th class="p-3">휴대폰 번호 마스킹/원본</th>
@@ -433,6 +445,51 @@
       window.alert(`${name} ${phone} 신청 내역\n\n${lines}`);
     }
 
+    // --- 전체 수강생 보기 + 상태 필터 ---
+    let viewAll = false; // true면 모든 수업의 신청자를 한 표에(수업일 컬럼 표시), 일괄 처리 바는 숨김
+    let statusFilter = 'all';
+
+    // 상태 분류: firstcome(선착순 신청·선착순 확보) / payment(결제 안내 중) / confirmed / waitlist / cancelled
+    function reservationCategory(r) {
+      if (r.reservation_status === 'cancelled' || r.reservation_status === 'no_show') return 'cancelled';
+      if (r.reservation_status === 'confirmed' || r.payment_status === 'paid') return 'confirmed';
+      if (r.reservation_status === 'payment_target') return r.payment_status === 'sent' ? 'payment' : 'firstcome';
+      const label = seatRankLabel(r);
+      return label.indexOf('대기') === 0 ? 'waitlist' : 'firstcome';
+    }
+
+    // 전체 보기용 구분 배지 — 수업별 순위 계산(seatRankLabel)을 그대로 쓴다.
+    function globalBadgeHtml(r) {
+      const cat = reservationCategory(r);
+      const label = seatRankLabel(r) || statusLabels[r.reservation_status] || r.reservation_status;
+      const tone = cat === 'confirmed' ? 'bg-emerald-100 text-emerald-700'
+        : cat === 'payment' ? 'bg-orange-100 text-orange-700'
+        : cat === 'waitlist' ? 'bg-blue-100 text-blue-700'
+        : cat === 'cancelled' ? 'bg-slate-100 text-slate-500'
+        : 'bg-teal-100 text-teal-700';
+      return `<span class="rounded-full ${tone} px-2 py-0.5 text-xs font-bold">${escapeHtml(label)}</span>` + (cat === 'payment' ? paymentOverdueHtml(r) : '');
+    }
+
+    // 전체 보기 정렬: 수업일 → 신청 시간순.
+    function allReservationsSorted() {
+      return (adminData.reservations || []).slice().sort((a, b) => {
+        const da = String(classDateLabel(a.class_id));
+        const db = String(classDateLabel(b.class_id));
+        if (da !== db) return da < db ? -1 : 1;
+        return String(a.created_at) < String(b.created_at) ? -1 : 1;
+      });
+    }
+
+    function updateFilterChips() {
+      document.querySelectorAll('[data-status-filter]').forEach((b) => {
+        const active = b.dataset.statusFilter === statusFilter;
+        b.classList.toggle('bg-slate-800', active);
+        b.classList.toggle('text-white', active);
+        b.classList.toggle('bg-white', !active);
+        b.classList.toggle('text-slate-600', !active);
+      });
+    }
+
     // 차단된 번호 표시 — 클릭하면 차단 해제.
     function blockedBadgeHtml(phone) {
       if (!isBlockedPhone(phone)) return '';
@@ -447,16 +504,25 @@
 
     function renderReservations(rows, classItem) {
       const body = document.getElementById('reservation-rows');
-      document.getElementById('reservation-count').textContent = `${rows.length}명`;
+      // 상태 필터 적용(수업별/전체 보기 공통). 순위 계산은 필터 전(rows) 기준으로 유지한다.
+      const shown = statusFilter === 'all' ? rows : rows.filter((r) => reservationCategory(r) === statusFilter);
+      document.getElementById('reservation-count').textContent =
+        statusFilter === 'all' ? `${shown.length}명` : `${shown.length}명 / 전체 ${rows.length}명`;
+      const thClassDate = document.querySelector('[data-th-class-date]');
+      if (thClassDate) thClassDate.classList.toggle('hidden', !viewAll);
+      const bulkBar = document.getElementById('bulk-action-bar');
+      if (bulkBar) bulkBar.classList.toggle('hidden', viewAll);
       const capacity = classItem ? Number(classItem.capacity || 0) : 0;
       const confirmed = classItem ? Number(classItem.confirmed_count || 0) : 0;
       const paymentReady = classItem ? Number(classItem.payment_ready_count || 0) : 0;
       const remaining = Math.max(capacity - confirmed - paymentReady, 0);
       const hint = document.getElementById('bulk-approve-hint');
       if (hint) {
-        hint.textContent = classItem
-          ? `예약 가능 인원 ${capacity}명 · 확정 ${confirmed}명 · 결제 안내 중 ${paymentReady}명 → 선착순 ${remaining}명 결제 안내 대상, 나머지 자동 대기`
-          : '';
+        hint.textContent = viewAll
+          ? '전체 수업의 신청자를 한눈에 봅니다. 상태 변경 등 일괄 처리는 수업별 보기에서 하세요.'
+          : (classItem
+            ? `예약 가능 인원 ${capacity}명 · 확정 ${confirmed}명 · 결제 안내 중 ${paymentReady}명 → 선착순 ${remaining}명 결제 안내 대상, 나머지 자동 대기`
+            : '');
       }
       const liveRank = {};
       const seatNo = {};
@@ -470,16 +536,17 @@
         if (!isDead && (isConfirmed || isPaymentTarget)) { seat += 1; seatNo[r.id] = seat; }
         if (!isConfirmed && !isDead && !isPaymentTarget) { rank += 1; liveRank[r.id] = rank; }
       });
-      if (!rows.length) {
-        body.innerHTML = '<tr><td class="p-5 text-center text-slate-500" colspan="12">이 수업일 예약자가 아직 없습니다.</td></tr>';
+      if (!shown.length) {
+        body.innerHTML = `<tr><td class="p-5 text-center text-slate-500" colspan="13">${statusFilter === 'all' ? '이 수업일 예약자가 아직 없습니다.' : '이 상태의 신청자가 없습니다.'}</td></tr>`;
         return;
       }
       const activeByPhone = activeReservationsByPhone();
-      body.innerHTML = rows.map((r, index) => `
+      body.innerHTML = shown.map((r, index) => `
         <tr class="border-b border-slate-100 align-top">
           <td class="p-3"><input type="checkbox" data-reservation-check value="${escapeHtml(r.id)}" aria-label="신청자 선택" /></td>
           <td class="p-3">${index + 1}</td>
-          <td class="p-3">${groupBadgeHtml(r, liveRank, remaining, seatNo)}</td>
+          ${viewAll ? `<td class="p-3 font-bold">${escapeHtml(classDateLabel(r.class_id))}</td>` : ''}
+          <td class="p-3">${viewAll ? globalBadgeHtml(r) : groupBadgeHtml(r, liveRank, remaining, seatNo)}</td>
           <td class="p-3 font-bold">${escapeHtml(r.applicant_name)}</td>
           <td class="p-3">${escapeHtml(r.phone)}${blockedBadgeHtml(r.phone)}${dupBadgeHtml(activeByPhone[r.phone])}</td>
           <td class="p-3">${escapeHtml(r.kettlebell_experience || '')}</td>
@@ -838,8 +905,21 @@
         currentClassId = (upcoming[0] || adminData.classes[0] || {}).class_id || '';
       }
       const currentClass = adminData.classes.find((item) => item.class_id === selectedClassId());
-      renderSummary(currentClass);
-      renderReservations(reservationsForSelectedClass(), currentClass);
+      if (viewAll) {
+        // 전체 보기: 요약 카드는 모든 수업 합계, 표는 전 수업 신청자(수업일 컬럼 표시).
+        const totals = (adminData.classes || []).reduce((acc, c) => ({
+          capacity: acc.capacity + Number(c.capacity || 0),
+          confirmed_count: acc.confirmed_count + Number(c.confirmed_count || 0),
+          available_count: acc.available_count + Number(c.available_count || 0),
+          waitlist_count: acc.waitlist_count + Number(c.waitlist_count || 0),
+          payment_ready_count: acc.payment_ready_count + Number(c.payment_ready_count || 0),
+        }), { capacity: 0, confirmed_count: 0, available_count: 0, waitlist_count: 0, payment_ready_count: 0 });
+        renderSummary(totals);
+        renderReservations(allReservationsSorted(), null);
+      } else {
+        renderSummary(currentClass);
+        renderReservations(reservationsForSelectedClass(), currentClass);
+      }
       renderMessageStatus();
       renderSearchResults(); // 데이터 갱신 후 열려있는 검색 결과도 최신화
       renderClassManager(adminData.classes); // 선택 하이라이트 갱신 위해 표도 다시 렌더
@@ -1169,10 +1249,29 @@
         document.getElementById('admin-message').textContent = `메모 저장 실패: ${error.message}`;
       }
     });
+    document.getElementById('view-all-toggle').addEventListener('click', () => {
+      viewAll = !viewAll;
+      document.getElementById('view-all-toggle').textContent = viewAll ? '🗓 수업별 보기로 돌아가기' : '📋 전체 수강생 보기';
+      renderAdminData();
+    });
+    document.querySelectorAll('[data-status-filter]').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        statusFilter = chip.dataset.statusFilter;
+        updateFilterChips();
+        renderAdminData();
+      });
+    });
     document.getElementById('reservation-search').addEventListener('input', renderSearchResults);
     document.getElementById('reservation-search-results').addEventListener('click', (event) => {
       const btn = event.target.closest('[data-search-goto]');
       if (!btn) return;
+      // 검색 이동은 항상 수업별 보기에서(체크 후 바로 일괄 처리 가능하게).
+      if (viewAll) {
+        viewAll = false;
+        document.getElementById('view-all-toggle').textContent = '📋 전체 수강생 보기';
+      }
+      statusFilter = 'all';
+      updateFilterChips();
       setSelectedClass(btn.dataset.searchClass); // 해당 수업으로 전환(표 재렌더)
       const check = document.querySelector(`[data-reservation-check][value="${btn.dataset.searchGoto}"]`);
       if (check) {

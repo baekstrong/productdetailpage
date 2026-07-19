@@ -546,6 +546,14 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("searchReservations", admin)
         self.assertIn("data-search-goto", admin)
 
+        # 전체 수강생 보기(수업일 컬럼) + 상태 필터(선착순/결제 안내 중/확정/대기/취소)
+        self.assertIn('id="view-all-toggle"', admin)
+        self.assertIn("전체 수강생 보기", admin)
+        self.assertIn("data-status-filter", admin)
+        self.assertIn("reservationCategory", admin)
+        self.assertIn("data-th-class-date", admin)
+        self.assertIn("allReservationsSorted", admin)
+
         # 환불: 공개 페이지 환불 규정 + 관리자 환불 처리 버튼(취소+환불 기록+환불 안내 문자)
         self.assertIn("Q. 결제 후 환불 규정은 어떻게 되나요?", html)
         self.assertIn("수업 시작 전 취소는 전액 환불", html)
