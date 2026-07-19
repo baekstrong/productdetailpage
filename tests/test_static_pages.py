@@ -288,6 +288,11 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("resendMessage", admin_fn)
         self.assertIn("action === 'resendMessage'", admin_fn)
 
+        # 발송 시각 표기: 서버가 sent_at을 내려주고, 현황판이 KST 날짜·시간으로 표기
+        self.assertIn("scheduled_at,sent_at", admin_fn)
+        self.assertIn("sentLabel", admin)
+        self.assertIn("발송</span>", admin)
+
     def test_public_submit_reservation_function(self):
         fn = read_page("supabase/functions/submit-reservation/index.ts")
         html = read_page("index.html")

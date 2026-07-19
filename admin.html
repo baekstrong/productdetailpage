@@ -502,6 +502,15 @@
         : ` <span class="font-normal text-slate-500">· ${when} 발송 예정</span>`;
     }
 
+    // sent_at(UTC ISO) → " · 7/18 14:32 발송" (KST +9h 변환 — schedLabel과 동일 규칙)
+    function sentLabel(iso) {
+      const t = new Date(iso || '');
+      if (isNaN(t.getTime())) return '';
+      const k = new Date(t.getTime() + 9 * 60 * 60 * 1000);
+      const pad = (n) => String(n).padStart(2, '0');
+      return ` <span class="font-normal text-slate-500">· ${k.getUTCMonth() + 1}/${k.getUTCDate()} ${pad(k.getUTCHours())}:${pad(k.getUTCMinutes())} 발송</span>`;
+    }
+
     function bestLogStatus(statuses) {
       if (statuses.includes('sent')) return 'sent';
       if (statuses.includes('scheduled')) return 'scheduled';
@@ -526,11 +535,16 @@
       });
       const sent = [], scheduled = [], missing = [];
       let scheduledAt = null; // 예약 발송 시각(같은 수업이면 전원 동일) — 현황에 날짜·시간 표기용
+      let sentAt = null; // 실제 발송 시각(가장 최근) — 현황에 날짜·시간 표기용
       Object.keys(byRes).forEach((rid) => {
         const rowLogs = byRes[rid];
         const best = bestLogStatus(rowLogs.map((l) => l.status));
         const name = resById[rid] ? resById[rid].applicant_name : '';
-        if (best === 'sent') sent.push({ id: rid, name });
+        if (best === 'sent') {
+          sent.push({ id: rid, name });
+          const at = rowLogs.filter((l) => l.status === 'sent' && l.sent_at).map((l) => l.sent_at).sort().pop();
+          if (at && (!sentAt || at > sentAt)) sentAt = at;
+        }
         else if (best === 'scheduled') {
           scheduled.push({ id: rid, name });
           const at = rowLogs.filter((l) => l.status === 'scheduled' && l.scheduled_at).map((l) => l.scheduled_at).sort().pop();
@@ -539,7 +553,7 @@
         else if (best === 'cancelled') { /* 취소는 행에서 완전 제외 */ }
         else missing.push({ id: rid, name });
       });
-      return { sent, scheduled, missing, scheduledAt };
+      return { sent, scheduled, missing, scheduledAt, sentAt };
     }
 
     function statusRowHtml(label, summaryHtml, actionHtml) {
@@ -558,7 +572,7 @@
         if (!row.type) {
           return statusRowHtml(row.label, `<span class="text-slate-400">${escapeHtml(row.fixed)}</span>`, '');
         }
-        const { sent, scheduled, missing, scheduledAt } = summarizeMessageStatus(row.type, reservations, logs);
+        const { sent, scheduled, missing, scheduledAt, sentAt } = summarizeMessageStatus(row.type, reservations, logs);
         const n = sent.length + scheduled.length + missing.length;
         // 복습 영상: 자동 발송이 없어 missing 집계가 안 잡힌다 → 항상 발송 버튼을 노출한다.
         // 발송 대상은 복습 자료(review_material) 수신자 = 결제 완료자.
@@ -566,7 +580,7 @@
           const targets = summarizeMessageStatus('review_material', reservations, logs);
           const targetN = targets.sent.length + targets.scheduled.length + targets.missing.length;
           const sentSummary = sent.length
-            ? `<span class="font-bold text-emerald-700">✅ 발송: ${nameList(sent)}</span>`
+            ? `<span class="font-bold text-emerald-700">✅ 발송: ${nameList(sent)}${sentLabel(sentAt)}</span>`
             : '<span class="text-slate-400">발송 내역 없음</span>';
           const btn = targetN
             ? `<button type="button" data-send-video class="rounded-lg bg-orange-100 px-3 py-1.5 text-xs font-bold text-orange-700">영상 링크 발송 ${targetN}명</button>`
@@ -577,12 +591,12 @@
         if (n === 0) {
           summary = '<span class="text-slate-400">발송 내역 없음</span>';
         } else if (missing.length === 0) {
-          if (scheduled.length === 0) summary = `<span class="font-bold text-emerald-700">✅ 전체 발송 완료 (${nameList(sent)})</span>`;
+          if (scheduled.length === 0) summary = `<span class="font-bold text-emerald-700">✅ 전체 발송 완료 (${nameList(sent)})${sentLabel(sentAt)}</span>`;
           else if (sent.length === 0) summary = `<span class="font-bold text-sky-700">📅 전체 예약 완료 (${nameList(scheduled)})${schedLabel(scheduledAt)}</span>`;
-          else summary = `<span class="font-bold text-emerald-700">발송: ${nameList(sent)} · 예약: ${nameList(scheduled)}${schedLabel(scheduledAt)}</span>`;
+          else summary = `<span class="font-bold text-emerald-700">발송: ${nameList(sent)}${sentLabel(sentAt)} · 예약: ${nameList(scheduled)}${schedLabel(scheduledAt)}</span>`;
         } else {
           const names = missing.map((m) => escapeHtml(m.name)).join(', ');
-          summary = `<span class="font-bold text-amber-700">발송 완료 (제외: ${names})</span>`;
+          summary = `<span class="font-bold text-amber-700">발송 완료${sentLabel(sentAt)} (제외: ${names})</span>`;
           // 접수 문자처럼 신청 시 1회 자동 발송하는 행(resendable:false, type 배열)은 재발송 버튼을 두지 않는다.
           if (row.resendable !== false && typeof row.type === 'string') {
             action = `<button type="button" data-resend-type="${escapeHtml(row.type)}" class="rounded-lg bg-orange-100 px-3 py-1.5 text-xs font-bold text-orange-700">재발송 ${missing.length}명</button>`;

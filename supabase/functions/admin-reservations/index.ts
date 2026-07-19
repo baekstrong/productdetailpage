@@ -211,7 +211,7 @@ async function listAdminData() {
   // which the admin still needs to manage). Counts are computed here from the same data.
   const classes = await supabaseFetch('classes?select=*&order=class_date.asc,start_time.asc');
   const reservations = await supabaseFetch('reservations?select=*&order=created_at.asc');
-  const messageLogs = await supabaseFetch('message_logs?select=reservation_id,message_type,status,scheduled_at&order=created_at.asc');
+  const messageLogs = await supabaseFetch('message_logs?select=reservation_id,message_type,status,scheduled_at,sent_at&order=created_at.asc');
   const classRows = Array.isArray(classes) ? classes : [];
   const reservationRows = Array.isArray(reservations) ? reservations : [];
 
