@@ -341,30 +341,6 @@
       return adminData.reservations.filter((row) => row.class_id === classId);
     }
 
-    function groupBadgeHtml(r, liveRank, remaining, seatNo) {
-      // 취소·불참을 먼저 판정한다(결제 완료 후 취소된 건이 '확정'으로 잘못 표시되지 않도록).
-      if (r.reservation_status === 'cancelled' || r.reservation_status === 'no_show') {
-        return '<span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-500">취소</span>';
-      }
-      if (r.reservation_status === 'confirmed' || r.payment_status === 'paid') {
-        return '<span class="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700">확정</span>';
-      }
-      if (r.reservation_status === 'payment_target') {
-        // 결제 링크를 보낸 대상(sent)은 '결제 안내 중', 링크 없이 자리만 확보(pending)는 '선착순 N'.
-        if (r.payment_status === 'sent') {
-          return '<span class="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-bold text-orange-700">결제 안내 중</span>' + paymentOverdueHtml(r);
-        }
-        const no = seatNo && seatNo[r.id];
-        return `<span class="rounded-full bg-teal-100 px-2 py-0.5 text-xs font-bold text-teal-700">선착순 확보${no ? ' ' + no : ''}</span>`;
-      }
-      const rank = liveRank[r.id];
-      if (rank === undefined) return '';
-      if (rank < remaining) {
-        return `<span class="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-bold text-orange-700">선착순 ${rank + 1}</span>`;
-      }
-      return `<span class="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-700">대기 ${rank - remaining + 1}</span>`;
-    }
-
     // 결제 안내(여석 안내, 즉시 결제 접수 문자 포함)가 발송된 가장 최근 시각(ms). 없으면 null.
     function paymentSentAt(reservationId) {
       const times = (adminData.messageLogs || [])
@@ -404,7 +380,7 @@
       });
       return map;
     }
-    // 한 신청이 그 수업에서 몇 위(선착순)/몇 순위(대기)인지 — groupBadgeHtml과 동일 기준(확정·결제안내중 제외, 미확정에 신청순 순번).
+    // 한 신청이 그 수업에서 몇 위(선착순)/몇 순위(대기)인지 — 구분 배지(globalBadgeHtml)의 단일 기준(확정·결제안내중 제외, 미확정에 신청순 순번).
     function seatRankLabel(r) {
       if (r.reservation_status === 'confirmed' || r.payment_status === 'paid') return '확정';
       if (r.reservation_status === 'payment_target') {
@@ -458,7 +434,8 @@
       return label.indexOf('대기') === 0 ? 'waitlist' : 'firstcome';
     }
 
-    // 전체 보기용 구분 배지 — 수업별 순위 계산(seatRankLabel)을 그대로 쓴다.
+    // 구분 배지 — 수업별/전체 보기 공통(색·라벨 통일). 순위는 seatRankLabel(수업별 계산) 기준.
+    // 색: 확정=초록, 결제 안내 중=주황, 선착순(신청·확보)=청록, 대기=파랑, 취소=회색.
     function globalBadgeHtml(r) {
       const cat = reservationCategory(r);
       const label = seatRankLabel(r) || statusLabels[r.reservation_status] || r.reservation_status;
@@ -524,18 +501,6 @@
             ? `예약 가능 인원 ${capacity}명 · 확정 ${confirmed}명 · 결제 안내 중 ${paymentReady}명 → 선착순 ${remaining}명 결제 안내 대상, 나머지 자동 대기`
             : '');
       }
-      const liveRank = {};
-      const seatNo = {};
-      let rank = -1;
-      let seat = 0;
-      rows.forEach((r) => {
-        const isConfirmed = r.reservation_status === 'confirmed' || r.payment_status === 'paid';
-        const isDead = r.reservation_status === 'cancelled' || r.reservation_status === 'no_show';
-        const isPaymentTarget = r.reservation_status === 'payment_target';
-        // 선착순 좌석번호(신청순): 확정·결제안내대상(자리 점유)에게 1..N 부여 — '선착순 확보' 배지에 사용.
-        if (!isDead && (isConfirmed || isPaymentTarget)) { seat += 1; seatNo[r.id] = seat; }
-        if (!isConfirmed && !isDead && !isPaymentTarget) { rank += 1; liveRank[r.id] = rank; }
-      });
       if (!shown.length) {
         body.innerHTML = `<tr><td class="p-5 text-center text-slate-500" colspan="13">${statusFilter === 'all' ? '이 수업일 예약자가 아직 없습니다.' : '이 상태의 신청자가 없습니다.'}</td></tr>`;
         return;
@@ -546,7 +511,7 @@
           <td class="p-3"><input type="checkbox" data-reservation-check value="${escapeHtml(r.id)}" aria-label="신청자 선택" /></td>
           <td class="p-3">${index + 1}</td>
           ${viewAll ? `<td class="p-3 font-bold">${escapeHtml(classDateLabel(r.class_id))}</td>` : ''}
-          <td class="p-3">${viewAll ? globalBadgeHtml(r) : groupBadgeHtml(r, liveRank, remaining, seatNo)}</td>
+          <td class="p-3">${globalBadgeHtml(r)}</td>
           <td class="p-3 font-bold">${escapeHtml(r.applicant_name)}</td>
           <td class="p-3">${escapeHtml(r.phone)}${blockedBadgeHtml(r.phone)}${dupBadgeHtml(activeByPhone[r.phone])}</td>
           <td class="p-3">${escapeHtml(r.kettlebell_experience || '')}</td>
