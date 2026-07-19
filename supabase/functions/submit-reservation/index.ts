@@ -116,23 +116,6 @@ async function sendSmsAndLog(reservationId: string, phone: string, messageType: 
   }
 }
 
-// 결제 기한(시간) 설정 조회 — 실패 시 기본 24.
-async function getDeadlineHours(): Promise<number> {
-  try {
-    const rows = await supabaseFetch('app_settings?key=eq.payment_deadline_hours&select=value');
-    const n = Array.isArray(rows) && rows[0] ? Number(rows[0].value) : NaN;
-    return Number.isInteger(n) && n > 0 ? n : 24;
-  } catch (_) {
-    return 24;
-  }
-}
-
-// 지금부터 h시간 뒤를 Solapi 예약 발송 형식(KST ISO8601)으로.
-function kstAfterHours(hours: number): string {
-  const t = new Date(Date.now() + hours * 3600 * 1000 + 9 * 3600 * 1000);
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${t.getUTCFullYear()}-${p(t.getUTCMonth() + 1)}-${p(t.getUTCDate())}T${p(t.getUTCHours())}:${p(t.getUTCMinutes())}:00+09:00`;
-}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -227,14 +210,8 @@ serve(async (req) => {
         if (waitlistRank > 0) values.waitlist_rank = String(waitlistRank);
         await sendSmsAndLog(String(reservation.id), phone, 'reservation_waitlist', values);
       } else {
-        // 정원 내 접수 문자(결제 링크 포함) + 기한 절반 시점에 결제 리마인드 예약 발송.
+        // 정원 내 접수 문자(결제 링크 포함).
         await sendSmsAndLog(String(reservation.id), phone, 'reservation_success', { class_date: classLabel, payment_url: PAYMENT_LINK });
-        const deadline = await getDeadlineHours();
-        await sendSmsAndLog(String(reservation.id), phone, 'payment_deadline_reminder', {
-          class_date: classLabel,
-          payment_url: PAYMENT_LINK,
-          remaining_hours: String(Math.ceil(deadline / 2)),
-        }, kstAfterHours(deadline / 2));
       }
     }
 

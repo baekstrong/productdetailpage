@@ -550,7 +550,6 @@
     const MESSAGE_STATUS_ROWS = [
       { label: '예약 신청 완료 문자', type: ['reservation_success', 'reservation_waitlist', 'reservation_received'], resendable: false },
       { label: '결제 안내 문자', type: 'payment 안내' },
-      { label: '결제 기한 리마인드 문자', type: 'payment_deadline_reminder', resendable: false },
       { label: '여석 안내 문자', type: 'seat_opened' },
       { label: '자리 확보 문자', type: 'seat_secured' },
       { label: '결제 완료 문자', type: 'payment_completed' },
@@ -693,8 +692,7 @@
       payment_completed: '결제 완료 문자', payment_expired: '미결제 마감 문자', payment_refunded: '환불 안내 문자', reservation_cancelled: '예약 취소 안내 문자',
       class_reminder: '수업 전 리마인드 문자', review_material: '수업 후 복습 자료 문자', review_video: '복습 영상 안내 문자',
       reservation_received: '예약 신청 완료 문자', custom: '직접 작성 문자',
-      reservation_success: '접수 문자(정원 내·결제 링크 포함)', reservation_waitlist: '접수 문자(대기)', admin_payment_reminder: '운영자 결제 리마인더(D-7)',
-      payment_deadline_reminder: '결제 기한 리마인드 문자'
+      reservation_success: '접수 문자(정원 내·결제 링크 포함)', reservation_waitlist: '접수 문자(대기)', admin_payment_reminder: '운영자 결제 리마인더(D-7)'
     };
 
     // solapi-reservations 직접 호출(관리자 비밀번호 인증) — 템플릿 조회/수정용.

@@ -534,16 +534,12 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("PAYMENT_LINK", submit)
         self.assertIn("아래 링크에서 결제를 완료하시면 자리가 확정됩니다", solapi)
 
-        # 결제 기한 리마인드: 기한 절반 시점 예약 발송 + 결제 완료/취소 시 취소
-        self.assertIn("payment_deadline_reminder", solapi)
-        self.assertIn("결제 기한이 약 {remaining_hours}시간 남았습니다", solapi)
-        self.assertIn("payment_deadline_reminder", submit)
-        self.assertIn("kstAfterHours", submit)
-        self.assertIn("schedulePaymentReminder", admin_fn)
-        self.assertIn("payment_deadline_reminder", admin_fn)
+        # 결제 기한 리마인드는 백관장 요청으로 제거(2026-07-19) — 신규 예약 발송 금지, 잔여 예약분 취소 로직만 유지
+        self.assertNotIn("schedulePaymentReminder", admin_fn)
+        self.assertNotIn("payment_deadline_reminder", submit)
+        self.assertNotIn("remaining_hours", solapi)
+        self.assertIn("payment_deadline_reminder", admin_fn)  # cancelScheduledFollowups의 잔여 취소 대상엔 유지
         self.assertIn("cancelScheduledMessages", cancel_fn)
-        self.assertIn("payment_deadline_reminder", admin)
-        self.assertIn("결제 기한 리마인드 문자", admin)
 
         # 공개 페이지: 즉시 결제 문구로 전환(1주일 전 발송 안내 제거)
         self.assertIn("접수 문자에 결제 링크가 바로", html)

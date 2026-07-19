@@ -130,38 +130,6 @@ async function previewMessage(classId: string, messageType: string, videoUrl?: s
   return await response.json().catch(() => ({ ok: false, error: 'invalid solapi response' }));
 }
 
-// 결제 기한(시간) 설정 조회 — 실패 시 기본 24.
-async function getDeadlineHours(): Promise<number> {
-  try {
-    const rows = await supabaseFetch('app_settings?key=eq.payment_deadline_hours&select=value');
-    const n = Array.isArray(rows) && rows[0] ? Number(rows[0].value) : NaN;
-    return Number.isInteger(n) && n > 0 ? n : 24;
-  } catch (_) {
-    return 24;
-  }
-}
-
-// 지금부터 h시간 뒤를 Solapi 예약 발송 형식(KST ISO8601)으로.
-function kstAfterHours(hours: number): string {
-  const t = new Date(Date.now() + hours * 3600 * 1000 + 9 * 3600 * 1000);
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${t.getUTCFullYear()}-${p(t.getUTCMonth() + 1)}-${p(t.getUTCDate())}T${p(t.getUTCHours())}:${p(t.getUTCMinutes())}:00+09:00`;
-}
-
-// 결제 안내(payment 안내/seat_opened) 발송 직후 기한 절반 시점에 결제 리마인드를 예약 발송한다.
-// 이미 예약된 리마인드가 있으면 중복 예약하지 않는다. 결제 완료/취소/마감 시 자동 취소된다.
-async function schedulePaymentReminder(reservation: Record<string, unknown>, classLabel: string) {
-  if (!reservation || !reservation.id) return;
-  const pending = await supabaseFetch(`message_logs?reservation_id=eq.${encodeURIComponent(String(reservation.id))}&message_type=eq.payment_deadline_reminder&status=eq.scheduled&select=id`);
-  if (Array.isArray(pending) && pending.length > 0) return;
-  const deadline = await getDeadlineHours();
-  await notify(reservation, 'payment_deadline_reminder', {
-    class_date: classLabel,
-    payment_url: PAYMENT_LINK,
-    remaining_hours: String(Math.ceil(deadline / 2)),
-  }, kstAfterHours(deadline / 2));
-}
-
 // 예약 발송 시각 계산(KST). scheduledDate는 Solapi에 보낼 "YYYY-MM-DD HH:mm:ss"(KST 로컬),
 // atMs는 과거 여부 비교용 절대시각(ms). Edge 런타임은 UTC이므로 KST는 직접 계산한다.
 function kstReminderSchedule(classDate: string): { scheduledDate: string; atMs: number } | null {
@@ -476,10 +444,7 @@ async function bulkApprove(classId: string, messageText?: string) {
       body: JSON.stringify({ ...updates, updated_at: new Date().toISOString() }),
     });
     // 선착순 통과(결제 안내 대상)에게만 결제 안내 문자 자동 발송. 대기자는 발송하지 않는다.
-    if (i < remaining) {
-      await notify(reservation, 'payment 안내', { class_date: info.label, place: info.place, payment_url: PAYMENT_LINK }, undefined, messageText);
-      await schedulePaymentReminder(reservation, info.label);
-    }
+    if (i < remaining) await notify(reservation, 'payment 안내', { class_date: info.label, place: info.place, payment_url: PAYMENT_LINK }, undefined, messageText);
   }
   return { ok: true, capacity, remaining, approved, waitlisted };
 }
@@ -580,8 +545,6 @@ async function resendMessage(classId: string, messageType: string, reservationId
       if (messageType === 'payment 안내' || messageType === 'seat_opened') values.payment_url = PAYMENT_LINK;
       if (messageType === 'review_video') values.video_url = videoLink;
       await notify(reservation, messageType, values, undefined, messageText);
-      // 결제 안내 재발송에도 리마인드를 예약한다(이미 예약돼 있으면 중복 방지).
-      if (messageType === 'payment 안내' || messageType === 'seat_opened') await schedulePaymentReminder(reservation, info.label);
     }
     sent += 1;
   }
@@ -639,8 +602,6 @@ async function updateReservation(reservationId: string, updates: Record<string, 
         } else {
           const messageType = notifyOverride === 'seat_opened' ? 'seat_opened' : 'payment 안내';
           await notify(updated, messageType, { class_date: info.label, place: info.place, payment_url: PAYMENT_LINK }, undefined, messageText);
-          // 결제 시계가 도는 안내(링크 포함)에는 기한 절반 시점 결제 리마인드를 예약한다.
-          await schedulePaymentReminder(updated, info.label);
         }
       }
     } else if (updated.reservation_status === 'confirmed' || updated.payment_status === 'paid') {

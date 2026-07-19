@@ -20,7 +20,6 @@ type MessageType =
   | 'review_video'
   | 'reservation_cancelled'
   | 'admin_payment_reminder'
-  | 'payment_deadline_reminder'
   | 'custom';
 
 const templates: Record<MessageType, string> = {
@@ -147,18 +146,6 @@ https://www.notion.so/easystrength/Part-2-9910eb46d55f40efad4f986986f5876d?sourc
   admin_payment_reminder: `[케틀벨 원데이 리마인더]
 {class_label} 수업이 7일 앞입니다.
 현재 신청 {count}명 — 선착순 승인하고 결제 안내를 보내주세요.`,
-  // 결제 기한 임박 리마인드 — 결제 안내 발송 시 기한의 절반 시점으로 예약 발송된다(결제/취소 시 자동 취소).
-  payment_deadline_reminder: `케틀벨 원데이 수업 결제 리마인드입니다
-
-결제 기한이 약 {remaining_hours}시간 남았습니다
-기한이 지나면 신청이 취소되고 다음 분께 자리가 안내됩니다
-
-{payment_url}
-
-수업 일정: {class_date}
-
-이미 결제하셨다면 이 문자는 무시해 주세요
-수강이 어려우시면 이 문자로 회신 주세요`,
   // 직접 작성 문자 — 템플릿 없이 관리자가 쓴 본문(overrideText)을 그대로 발송한다.
   custom: '',
 };
