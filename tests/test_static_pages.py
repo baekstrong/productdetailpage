@@ -293,6 +293,16 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("sentLabel", admin)
         self.assertIn("발송</span>", admin)
 
+        # 발송 본문 확인: 발송 시 body 저장(message_logs) + 현황판 클릭 → 본문 모달
+        schema = read_page("supabase/schema.sql")
+        solapi = read_page("supabase/functions/solapi-reservations/index.ts")
+        self.assertIn("add column if not exists body", schema)
+        self.assertIn("phoneMasked: maskPhone(phone), text", solapi)
+        self.assertIn("sent_at,body", admin_fn)
+        self.assertIn('id="log-modal"', admin)
+        self.assertIn("showLogDetail", admin)
+        self.assertIn("data-log-detail", admin)
+
     def test_public_submit_reservation_function(self):
         fn = read_page("supabase/functions/submit-reservation/index.ts")
         html = read_page("index.html")

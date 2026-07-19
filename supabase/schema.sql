@@ -54,8 +54,12 @@ create table if not exists public.message_logs (
   error_message text,
   scheduled_at timestamptz,
   sent_at timestamptz,
+  body text, -- 실제 발송된 본문(관리자 현황판 '내용 보기'용). 도입(2026-07-19) 전 기록은 null.
   created_at timestamptz not null default now()
 );
+
+-- 기존 DB 반영용
+alter table public.message_logs add column if not exists body text;
 
 create or replace view public.class_reservation_summary as
 select

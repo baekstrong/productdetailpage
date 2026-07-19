@@ -402,7 +402,8 @@ serve(async (req) => {
     if (!text.trim()) return jsonResponse({ error: 'text is required' }, 400);
     if (!phone) return jsonResponse({ error: 'phone is required' }, 400);
     const result = await sendSolapi(phone, text, scheduledAt);
-    return jsonResponse({ ...result, messageType, phoneMasked: maskPhone(phone) });
+    // text를 함께 반환 — 호출자(발송 로그)가 실제 발송 본문을 message_logs.body에 남긴다.
+    return jsonResponse({ ...result, messageType, phoneMasked: maskPhone(phone), text });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'unknown error';
     const status = message === 'invalid password' ? 401 : 500;

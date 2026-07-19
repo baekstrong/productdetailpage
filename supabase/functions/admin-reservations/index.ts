@@ -100,6 +100,7 @@ async function logMessage(reservationId: string, messageType: string, phone: str
         error_message: ok ? null : ((result && (result.error || result.reason)) as string) || null,
         scheduled_at: scheduledAt || null,
         sent_at: new Date().toISOString(),
+        body: (result && (result.text as string)) || null,
       }),
     });
   } catch (_) {
@@ -211,7 +212,7 @@ async function listAdminData() {
   // which the admin still needs to manage). Counts are computed here from the same data.
   const classes = await supabaseFetch('classes?select=*&order=class_date.asc,start_time.asc');
   const reservations = await supabaseFetch('reservations?select=*&order=created_at.asc');
-  const messageLogs = await supabaseFetch('message_logs?select=reservation_id,message_type,status,scheduled_at,sent_at&order=created_at.asc');
+  const messageLogs = await supabaseFetch('message_logs?select=reservation_id,message_type,status,scheduled_at,sent_at,body&order=created_at.asc');
   const classRows = Array.isArray(classes) ? classes : [];
   const reservationRows = Array.isArray(reservations) ? reservations : [];
   // 차단 명단·운영 설정은 부가 정보 — 조회 실패해도 관리자 화면 자체는 뜨도록 방어.

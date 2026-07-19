@@ -109,6 +109,7 @@ async function sendSmsAndLog(reservationId: string, phone: string, messageType: 
         error_message: ok ? null : ((result && (result.error || result.reason)) as string) || null,
         scheduled_at: scheduledAt || null,
         sent_at: new Date().toISOString(),
+        body: (result && (result.text as string)) || null,
       }),
     });
   } catch (_) {

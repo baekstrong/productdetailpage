@@ -124,6 +124,7 @@ async function sendCancelledSms(reservationId: string, phone: string, classLabel
         status: ok ? 'sent' : (result && result.skipped ? 'skipped' : 'failed'),
         error_message: ok ? null : ((result && (result.error || result.reason)) as string) || null,
         sent_at: new Date().toISOString(),
+        body: (result && (result.text as string)) || null,
       }),
     });
   } catch (_) {
