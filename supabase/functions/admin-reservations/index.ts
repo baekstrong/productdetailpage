@@ -371,7 +371,7 @@ async function updateClass(classId: string, updates: Record<string, unknown>) {
     body: JSON.stringify(row),
   });
   const classRow = Array.isArray(updated) ? updated[0] : updated;
-  // 일시·장소가 바뀌면 결제 완료자의 예약 문자(리마인드·복습·후기 요청)를 취소하고 새 일정 기준으로 다시 건다.
+  // 일시·장소가 바뀌면 결제 완료자의 예약 문자(리마인드·복습)를 취소하고 새 일정 기준으로 다시 건다.
   let rescheduled = 0;
   const norm = (k: string, v: unknown) => (k.endsWith('_time') ? String(v || '').slice(0, 5) : String(v || ''));
   const scheduleChanged = ['class_date', 'start_time', 'end_time', 'place']
@@ -494,7 +494,7 @@ async function bulkApprove(classId: string, messageText?: string) {
 }
 
 // 이미 발송/예약된 후속 문자 타입 집합(결제 완료 재클릭 시 중복 예약 방지).
-const FOLLOWUP_TYPES = ['class_reminder', 'review_material', 'review_request'];
+const FOLLOWUP_TYPES = ['class_reminder', 'review_material'];
 
 async function alreadyScheduledTypes(reservationId: string): Promise<Set<string>> {
   const rows = await supabaseFetch(`message_logs?reservation_id=eq.${encodeURIComponent(reservationId)}&message_type=in.(${FOLLOWUP_TYPES.join(',')})&status=in.(sent,scheduled)&select=message_type`);
@@ -525,19 +525,6 @@ async function scheduleFollowups(reservation: Record<string, unknown>, info: { l
       await logMessage(String(reservation.id), 'review_material', String(reservation.phone || ''), { ok: false, skipped: true, reason: '예약 발송 시각이 이미 지남' });
     }
   }
-  // 수업 다음 날 12시(KST) 후기 요청 — 지난 시각이면 조용히 생략(현황판 노이즈 방지).
-  const feedback = kstNextNoonSchedule(info.class_date);
-  if (!done.has('review_request') && feedback && feedback.atMs > now) {
-    await notify(reservation, 'review_request', { class_date: info.label, place: info.place }, feedback.scheduledDate);
-  }
-}
-
-function kstNextNoonSchedule(classDate: string): { scheduledDate: string; atMs: number } | null {
-  const base = new Date(`${classDate}T00:00:00Z`);
-  if (isNaN(base.getTime())) return null;
-  const next = new Date(base.getTime() + 24 * 60 * 60 * 1000);
-  const ymd = next.toISOString().slice(0, 10);
-  return { scheduledDate: `${ymd}T12:00:00+09:00`, atMs: new Date(`${ymd}T12:00:00+09:00`).getTime() };
 }
 
 // --- 다음 일정 오픈 알림: 알림 신청자 전원에게 열린 일정 목록을 안내하고 명단을 종료 처리 ---
@@ -594,7 +581,7 @@ async function deleteOpenAlert(id: string) {
 
 // 취소/만료 시 해당 예약의 예약된 문자(리마인드·복습·결제 리마인드)를 Solapi에서 취소.
 // types를 지정하면 그 종류만 취소한다(예: 결제 완료 시 결제 리마인드만).
-async function cancelScheduledFollowups(reservationId: string, types: string[] = ['class_reminder', 'review_material', 'review_request', 'payment_deadline_reminder']) {
+async function cancelScheduledFollowups(reservationId: string, types: string[] = ['class_reminder', 'review_material', 'payment_deadline_reminder']) {
   if (!reservationId) return;
   const typeList = types.join(',');
   const rows = await supabaseFetch(`message_logs?reservation_id=eq.${encodeURIComponent(reservationId)}&status=eq.scheduled&message_type=in.(${encodeURIComponent(typeList)})&select=id,provider_message_id`);

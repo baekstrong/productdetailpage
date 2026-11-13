@@ -620,7 +620,6 @@
       { label: '결제 완료 문자', type: 'payment_completed' },
       { label: '수업 전 리마인드 문자', type: 'class_reminder' },
       { label: '수업 후 복습 자료 문자', type: 'review_material' },
-      { label: '수업 다음 날 후기 요청 문자', type: 'review_request', resendable: false },
       { label: '예약 취소 안내 문자', type: 'reservation_cancelled' },
       { label: '복습 영상 안내 문자', type: 'review_video', manual: true },
     ];
@@ -800,7 +799,7 @@
       class_reminder: '수업 전 리마인드 문자', review_material: '수업 후 복습 자료 문자', review_video: '복습 영상 안내 문자',
       reservation_received: '예약 신청 완료 문자', custom: '직접 작성 문자',
       reservation_success: '접수 문자(정원 내·결제 링크 포함)', reservation_waitlist: '접수 문자(대기)', admin_payment_reminder: '운영자 결제 리마인더(D-7)',
-      class_opened: '다음 일정 오픈 알림 문자', review_request: '수업 다음 날 후기 요청 문자', admin_seat_released: '운영자 여석 알림(본인 취소)'
+      class_opened: '다음 일정 오픈 알림 문자', admin_seat_released: '운영자 여석 알림(본인 취소)'
     };
 
     // solapi-reservations 직접 호출(관리자 비밀번호 인증) — 템플릿 조회/수정용.
@@ -1574,7 +1573,7 @@
         else await callAdminApi('createClass', { class: classPayload });
         closeClassModal();
         await loadAdminData();
-        if (rescheduled) window.alert(`일시·장소 변경에 맞춰 결제 완료자 ${rescheduled}명의 리마인드·복습·후기 문자를 새 일정으로 다시 예약했습니다.\n변경 안내가 필요하면 '직접 작성 문자'로 따로 알려 주세요.`);
+        if (rescheduled) window.alert(`일시·장소 변경에 맞춰 결제 완료자 ${rescheduled}명의 리마인드·복습 문자를 새 일정으로 다시 예약했습니다.\n변경 안내가 필요하면 '직접 작성 문자'로 따로 알려 주세요.`);
       } catch (error) {
         message.textContent = `처리 실패: ${error.message}`;
       }

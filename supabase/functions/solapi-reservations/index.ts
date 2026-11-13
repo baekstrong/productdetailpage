@@ -23,7 +23,6 @@ type MessageType =
   | 'admin_payment_reminder'
   | 'admin_seat_released'
   | 'class_opened'
-  | 'review_request'
   | 'custom';
 
 const templates: Record<MessageType, string> = {
@@ -165,14 +164,6 @@ https://www.notion.so/easystrength/Part-2-9910eb46d55f40efad4f986986f5876d?sourc
 {page_url}
 
 알림 신청해 주셔서 감사합니다(이번 안내 후 알림 신청은 종료됩니다)`,
-  // 수업 다음 날 후기 요청 — 결제 완료자에게 예약 발송
-  review_request: `어제 케틀벨 원데이 수업에 와 주셔서 감사합니다
-
-수업은 어떠셨나요?
-좋았던 점, 아쉬웠던 점을 이 문자로 편하게 회신해 주시면
-다음 수업을 준비하는 데 큰 도움이 됩니다
-
-집에서 연습하다 막히는 동작이 있으면 그것도 같이 남겨 주세요`,
   // 직접 작성 문자 — 템플릿 없이 관리자가 쓴 본문(overrideText)을 그대로 발송한다.
   custom: '',
 };

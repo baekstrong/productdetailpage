@@ -646,10 +646,10 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("class_opened", solapi)
         self.assertIn('id="open-alert-send"', admin)
 
-        # 수업 삭제·변경 시 예약 문자 정리/재예약, 후기 요청
+        # 수업 삭제·변경 시 예약 문자 정리/재예약. 후기 요청 문자는 운영자 요청으로 제거(2026-11-13)
         self.assertIn("rescheduled", admin_fn)
-        self.assertIn("review_request", admin_fn)
-        self.assertIn("review_request", solapi)
+        self.assertNotIn("review_request", admin_fn)
+        self.assertNotIn("review_request", solapi)
 
         # 개인정보 파기 함수 + 번호 해시(이력 배지)
         self.assertIn("purge_personal_data", schema)
