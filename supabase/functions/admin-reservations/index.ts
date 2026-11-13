@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createEvent, updateEvent, deleteEvent } from './calendar.ts';
+import { adminLocked, internalHeaders, recordAdminFail } from '../_shared/guard.ts';
 
 const corsHeaders = {
   'access-control-allow-origin': '*',
@@ -71,11 +72,11 @@ function isCancelledRow(r: Record<string, unknown>): boolean {
 
 // solapi-reservations 호출 인증은 Bearer service_role 헤더(내부 호출)로 충분 — 비밀번호는 보내지 않는다.
 async function sendSms(messageType: string, phone: string, values: Record<string, string>, scheduledAt?: string, overrideText?: string) {
-  const { url, serviceKey } = getSupabaseAdmin();
+  const { url } = getSupabaseAdmin();
   try {
     const response = await fetch(`${url}/functions/v1/solapi-reservations`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', apikey: serviceKey, authorization: `Bearer ${serviceKey}` },
+      headers: internalHeaders(),
       body: JSON.stringify({ messageType, phone, values, scheduledAt, overrideText }),
     });
     return await response.json().catch(() => ({ ok: false, error: 'invalid solapi response' }));
@@ -92,7 +93,7 @@ async function logMessage(reservationId: string, messageType: string, phone: str
       method: 'POST',
       headers: { prefer: 'return=minimal' },
       body: JSON.stringify({
-        reservation_id: reservationId,
+        reservation_id: reservationId || null,
         message_type: messageType,
         phone_masked: maskPhone(phone),
         provider_message_id: (result && ((result.groupId as string) || (result.messageId as string))) || null,
@@ -122,10 +123,10 @@ async function previewMessage(classId: string, messageType: string, videoUrl?: s
   const values: Record<string, string> = { class_date: info.label, place: info.place };
   if (messageType === 'payment 안내' || messageType === 'seat_opened') values.payment_url = PAYMENT_LINK;
   if (messageType === 'review_video') values.video_url = String(videoUrl || '').trim();
-  const { url, serviceKey } = getSupabaseAdmin();
+  const { url } = getSupabaseAdmin();
   const response = await fetch(`${url}/functions/v1/solapi-reservations`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', apikey: serviceKey, authorization: `Bearer ${serviceKey}` },
+    headers: internalHeaders(),
     body: JSON.stringify({ messageType, values, preview: true }),
   });
   return await response.json().catch(() => ({ ok: false, error: 'invalid solapi response' }));
@@ -206,17 +207,34 @@ function pickClassFields(input: Record<string, unknown>): Record<string, unknown
   return row;
 }
 
+// PostgREST 기본 최대 행(1000)을 넘어도 잘리지 않도록 Range로 끝까지 읽는다.
+async function fetchAll(path: string, pageSize = 1000): Promise<Record<string, unknown>[]> {
+  const out: Record<string, unknown>[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const page = await supabaseFetch(path, { headers: { range: `${from}-${from + pageSize - 1}`, 'range-unit': 'items' } });
+    const rows = Array.isArray(page) ? page : [];
+    out.push(...rows);
+    if (rows.length < pageSize) break;
+  }
+  return out;
+}
+
 async function listAdminData() {
   // Admin uses the service role, so it reads the raw public.classes / public.reservations tables
   // directly (the anon-facing public.class_reservation_summary view hides non-public / hidden classes,
   // which the admin still needs to manage). Counts are computed here from the same data.
-  const classes = await supabaseFetch('classes?select=*&order=class_date.asc,start_time.asc');
-  const reservations = await supabaseFetch('reservations?select=*&order=created_at.asc');
-  const messageLogs = await supabaseFetch('message_logs?select=reservation_id,message_type,status,scheduled_at,sent_at,body&order=created_at.asc');
+  const classes = await fetchAll('classes?select=*&order=class_date.asc,start_time.asc');
+  const reservations = await fetchAll('reservations?select=*&order=created_at.asc');
+  const messageLogs = await fetchAll('message_logs?select=reservation_id,message_type,status,scheduled_at,sent_at,body&order=created_at.asc');
   const classRows = Array.isArray(classes) ? classes : [];
   const reservationRows = Array.isArray(reservations) ? reservations : [];
   // 차단 명단·운영 설정은 부가 정보 — 조회 실패해도 관리자 화면 자체는 뜨도록 방어.
   let blockedPhones: unknown[] = [];
+  let openAlerts: unknown[] = [];
+  try {
+    const alerts = await supabaseFetch('class_open_alerts?notified_at=is.null&select=id,applicant_name,phone,created_at&order=created_at.asc');
+    if (Array.isArray(alerts)) openAlerts = alerts;
+  } catch (_) { /* ignore */ }
   let settings: Record<string, string> = {};
   try {
     const blocked = await supabaseFetch('blocked_phones?select=phone,reason,created_at');
@@ -259,6 +277,7 @@ async function listAdminData() {
     message_logs: Array.isArray(messageLogs) ? messageLogs : [],
     blocked_phones: blockedPhones,
     settings,
+    open_alerts: openAlerts,
   };
 }
 
@@ -340,15 +359,34 @@ async function createClass(input: Record<string, unknown>) {
 async function updateClass(classId: string, updates: Record<string, unknown>) {
   if (!classId) throw new Error('classId is required');
   const row = pickClassFields(updates || {});
+  // 변경 전 값 — 실제로 일시·장소가 바뀌었을 때만 예약 문자를 다시 건다.
+  const beforeRows = await supabaseFetch(`classes?id=eq.${encodeURIComponent(classId)}&select=class_date,start_time,end_time,place`);
+  const before = Array.isArray(beforeRows) && beforeRows[0] ? beforeRows[0] : {};
   row.updated_at = new Date().toISOString();
   // 수업 날짜를 바꾸면 결제 리마인더 이력을 초기화 — 새 날짜 기준 D-7에 다시 가도록.
-  if (row.class_date !== undefined) row.payment_reminder_sent_at = null;
+  if (row.class_date !== undefined && String(row.class_date) !== String((before as Record<string, unknown>).class_date || '')) row.payment_reminder_sent_at = null;
   const updated = await supabaseFetch(`classes?id=eq.${encodeURIComponent(classId)}&select=*`, {
     method: 'PATCH',
     headers: { prefer: 'return=representation' },
     body: JSON.stringify(row),
   });
   const classRow = Array.isArray(updated) ? updated[0] : updated;
+  // 일시·장소가 바뀌면 결제 완료자의 예약 문자(리마인드·복습·후기 요청)를 취소하고 새 일정 기준으로 다시 건다.
+  let rescheduled = 0;
+  const norm = (k: string, v: unknown) => (k.endsWith('_time') ? String(v || '').slice(0, 5) : String(v || ''));
+  const scheduleChanged = ['class_date', 'start_time', 'end_time', 'place']
+    .some((k) => row[k] !== undefined && norm(k, row[k]) !== norm(k, (before as Record<string, unknown>)[k]));
+  if (classRow && classRow.id && scheduleChanged) {
+    const paidRows = await supabaseFetch(
+      `reservations?class_id=eq.${encodeURIComponent(String(classRow.id))}&reservation_status=not.in.(cancelled,no_show)&or=(reservation_status.eq.confirmed,payment_status.eq.paid)&select=*`,
+    );
+    const info = await classInfo(String(classRow.id));
+    for (const r of Array.isArray(paidRows) ? paidRows : []) {
+      await cancelScheduledFollowups(String(r.id), FOLLOWUP_TYPES);
+      await scheduleFollowups(r, info);
+      rescheduled += 1;
+    }
+  }
   // 캘린더 반영(베스트 에포트): 이벤트가 있으면 갱신, 없으면 새로 생성 후 연결.
   if (classRow && classRow.id) {
     if (classRow.google_event_id) {
@@ -365,7 +403,7 @@ async function updateClass(classId: string, updates: Record<string, unknown>) {
       }
     }
   }
-  return { ok: true, class: classRow };
+  return { ok: true, class: classRow, rescheduled };
 }
 
 async function deleteClass(classId: string, force = false) {
@@ -379,6 +417,11 @@ async function deleteClass(classId: string, force = false) {
     if (Array.isArray(paid) && paid.length > 0) {
       throw new Error(`결제 완료 예약이 ${paid.length}건 있어 삭제가 차단되었습니다. 정말 삭제하려면 다시 한 번 확인해 주세요.`);
     }
+  }
+  // 삭제 전에 이 수업 신청자들의 예약 문자(리마인드·복습 등)를 모두 취소 — 지운 수업 안내가 나가지 않도록.
+  const classReservations = await supabaseFetch(`reservations?class_id=eq.${encodeURIComponent(classId)}&select=id`);
+  for (const r of Array.isArray(classReservations) ? classReservations : []) {
+    await cancelScheduledFollowups(String(r.id));
   }
   // 삭제 전에 연결된 캘린더 이벤트 id를 확보해 캘린더에서도 제거(베스트 에포트).
   const rows = await supabaseFetch(`classes?id=eq.${encodeURIComponent(classId)}&select=google_event_id`);
@@ -451,8 +494,10 @@ async function bulkApprove(classId: string, messageText?: string) {
 }
 
 // 이미 발송/예약된 후속 문자 타입 집합(결제 완료 재클릭 시 중복 예약 방지).
+const FOLLOWUP_TYPES = ['class_reminder', 'review_material', 'review_request'];
+
 async function alreadyScheduledTypes(reservationId: string): Promise<Set<string>> {
-  const rows = await supabaseFetch(`message_logs?reservation_id=eq.${encodeURIComponent(reservationId)}&message_type=in.(class_reminder,review_material)&status=in.(sent,scheduled)&select=message_type`);
+  const rows = await supabaseFetch(`message_logs?reservation_id=eq.${encodeURIComponent(reservationId)}&message_type=in.(${FOLLOWUP_TYPES.join(',')})&status=in.(sent,scheduled)&select=message_type`);
   const set = new Set<string>();
   if (Array.isArray(rows)) for (const r of rows) set.add(String(r.message_type));
   return set;
@@ -480,16 +525,81 @@ async function scheduleFollowups(reservation: Record<string, unknown>, info: { l
       await logMessage(String(reservation.id), 'review_material', String(reservation.phone || ''), { ok: false, skipped: true, reason: '예약 발송 시각이 이미 지남' });
     }
   }
+  // 수업 다음 날 12시(KST) 후기 요청 — 지난 시각이면 조용히 생략(현황판 노이즈 방지).
+  const feedback = kstNextNoonSchedule(info.class_date);
+  if (!done.has('review_request') && feedback && feedback.atMs > now) {
+    await notify(reservation, 'review_request', { class_date: info.label, place: info.place }, feedback.scheduledDate);
+  }
+}
+
+function kstNextNoonSchedule(classDate: string): { scheduledDate: string; atMs: number } | null {
+  const base = new Date(`${classDate}T00:00:00Z`);
+  if (isNaN(base.getTime())) return null;
+  const next = new Date(base.getTime() + 24 * 60 * 60 * 1000);
+  const ymd = next.toISOString().slice(0, 10);
+  return { scheduledDate: `${ymd}T12:00:00+09:00`, atMs: new Date(`${ymd}T12:00:00+09:00`).getTime() };
+}
+
+// --- 다음 일정 오픈 알림: 알림 신청자 전원에게 열린 일정 목록을 안내하고 명단을 종료 처리 ---
+const PAGE_URL = Deno.env.get('PUBLIC_PAGE_URL') || 'https://baekstrong.github.io/productdetailpage/';
+
+async function upcomingClassLabels(): Promise<string[]> {
+  const today = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+  const rows = await supabaseFetch(`classes?class_date=gte.${today}&is_public=eq.true&status=in.(open,waitlist)&select=class_date,start_time,end_time,open_at&order=class_date.asc,start_time.asc`);
+  return (Array.isArray(rows) ? rows : [])
+    .filter((c) => !c.open_at || new Date(String(c.open_at)).getTime() <= Date.now() + 7 * 86400000)
+    .map((c) => '- ' + formatSchedule(String(c.class_date), String(c.start_time), String(c.end_time)));
+}
+
+async function previewOpenAlert() {
+  const labels = await upcomingClassLabels();
+  if (!labels.length) throw new Error('안내할 예정 수업이 없습니다. 수업을 먼저 등록해 주세요.');
+  const { url } = getSupabaseAdmin();
+  const response = await fetch(`${url}/functions/v1/solapi-reservations`, {
+    method: 'POST',
+    headers: internalHeaders(),
+    body: JSON.stringify({ messageType: 'class_opened', values: { class_date: labels.join('\n'), page_url: PAGE_URL }, preview: true }),
+  });
+  return await response.json().catch(() => ({ ok: false, error: 'invalid solapi response' }));
+}
+
+async function notifyOpenAlerts(messageText?: string) {
+  const labels = await upcomingClassLabels();
+  if (!labels.length) throw new Error('안내할 예정 수업이 없습니다. 수업을 먼저 등록해 주세요.');
+  const alerts = await supabaseFetch('class_open_alerts?notified_at=is.null&select=id,phone&order=created_at.asc');
+  let sent = 0;
+  let failed = 0;
+  for (const a of Array.isArray(alerts) ? alerts : []) {
+    const result = await sendSms('class_opened', String(a.phone), { class_date: labels.join('\n'), page_url: PAGE_URL }, undefined, messageText) as Record<string, unknown>;
+    await logMessage('', 'class_opened', String(a.phone), result);
+    if (result && result.ok) {
+      sent += 1;
+      await supabaseFetch(`class_open_alerts?id=eq.${encodeURIComponent(String(a.id))}`, {
+        method: 'PATCH',
+        headers: { prefer: 'return=minimal' },
+        body: JSON.stringify({ notified_at: new Date().toISOString() }),
+      });
+    } else {
+      failed += 1;
+    }
+  }
+  return { ok: true, sent, failed };
+}
+
+async function deleteOpenAlert(id: string) {
+  if (!id) throw new Error('id is required');
+  await supabaseFetch(`class_open_alerts?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' });
+  return { ok: true };
 }
 
 // 취소/만료 시 해당 예약의 예약된 문자(리마인드·복습·결제 리마인드)를 Solapi에서 취소.
 // types를 지정하면 그 종류만 취소한다(예: 결제 완료 시 결제 리마인드만).
-async function cancelScheduledFollowups(reservationId: string, types: string[] = ['class_reminder', 'review_material', 'payment_deadline_reminder']) {
+async function cancelScheduledFollowups(reservationId: string, types: string[] = ['class_reminder', 'review_material', 'review_request', 'payment_deadline_reminder']) {
   if (!reservationId) return;
   const typeList = types.join(',');
   const rows = await supabaseFetch(`message_logs?reservation_id=eq.${encodeURIComponent(reservationId)}&status=eq.scheduled&message_type=in.(${encodeURIComponent(typeList)})&select=id,provider_message_id`);
   if (!Array.isArray(rows)) return;
-  const { url, serviceKey } = getSupabaseAdmin();
+  const { url } = getSupabaseAdmin();
   for (const row of rows) {
     const groupId = String(row.provider_message_id || '');
     let cancelled = !groupId; // groupId가 없으면 원격 예약이 없으므로 로컬만 정리한다.
@@ -498,7 +608,7 @@ async function cancelScheduledFollowups(reservationId: string, types: string[] =
       try {
         const res = await fetch(`${url}/functions/v1/solapi-reservations`, {
           method: 'POST',
-          headers: { 'content-type': 'application/json', apikey: serviceKey, authorization: `Bearer ${serviceKey}` },
+          headers: internalHeaders(),
           body: JSON.stringify({ cancelGroupId: groupId }),
         });
         const result = await res.json().catch(() => ({ ok: false }));
@@ -627,12 +737,22 @@ serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const action = String(body.action || '');
     const password = String(body.password || '');
-    await assertAdminPassword(password);
+    // 비밀번호 무차별 대입 방어: IP당 15분 10회 실패 시 잠금.
+    if (await adminLocked(req)) return jsonResponse({ ok: false, error: '로그인 시도가 너무 많습니다. 15분 후 다시 시도해 주세요.' }, 429);
+    try {
+      await assertAdminPassword(password);
+    } catch (error) {
+      await recordAdminFail(req);
+      throw error;
+    }
 
     if (action === 'list') return jsonResponse(await listAdminData());
     if (action === 'createClass') return jsonResponse(await createClass(body.class || {}));
     if (action === 'updateClass') return jsonResponse(await updateClass(String(body.classId || ''), body.updates || {}));
     if (action === 'deleteClass') return jsonResponse(await deleteClass(String(body.classId || ''), Boolean(body.force)));
+    if (action === 'previewOpenAlert') return jsonResponse(await previewOpenAlert());
+    if (action === 'notifyOpenAlerts') return jsonResponse(await notifyOpenAlerts(body.messageText ? String(body.messageText) : undefined));
+    if (action === 'deleteOpenAlert') return jsonResponse(await deleteOpenAlert(String(body.id || '')));
     if (action === 'backfillCalendar') return jsonResponse(await backfillCalendar());
     if (action === 'blockPhones') return jsonResponse(await blockPhones(Array.isArray(body.reservationIds) ? body.reservationIds.map(String) : []));
     if (action === 'unblockPhone') return jsonResponse(await unblockPhone(String(body.phone || '')));

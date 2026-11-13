@@ -8,11 +8,12 @@
   <meta property="og:title" content="케틀벨 원데이 수업" />
   <meta property="og:description" content="혼자 시작하기 불안했다면, 하루 만에 기본기와 방향부터." />
   <meta property="og:type" content="website" />
+  <!-- 결제 안내 문자를 받은 분 전용 보조 페이지 — 검색 노출 제외(신청은 예약 페이지에서) -->
+  <meta name="robots" content="noindex,nofollow" />
+  <link rel="canonical" href="https://baekstrong.github.io/productdetailpage/" />
+  <link rel="icon" type="image/png" href="assets/apple-touch-icon.png" />
 
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet" />
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -20,7 +21,7 @@
       theme: {
         extend: {
           fontFamily: {
-            sans: ['Pretendard', 'ui-sans-serif', 'system-ui', '-apple-system', 'sans-serif'],
+            sans: ['Pretendard Variable', 'Pretendard', 'ui-sans-serif', 'system-ui', '-apple-system', 'sans-serif'],
           },
           colors: {
             ink: {
@@ -57,7 +58,7 @@
 
   <style>
     html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
-    body { font-family: 'Pretendard', ui-sans-serif, system-ui, -apple-system, sans-serif; }
+    body { font-family: 'Pretendard Variable', 'Pretendard', ui-sans-serif, system-ui, -apple-system, sans-serif; }
     .break-keep { word-break: keep-all; }
 
     /* Subtle dotted background for hero */
@@ -85,9 +86,9 @@
         <span class="inline-block w-2.5 h-2.5 rounded-full bg-brand-500"></span>
         <span class="font-bold tracking-tight">케틀벨 원데이</span>
       </a>
-      <a href="https://smartstore.naver.com/easystrength101/products/9825334073" target="_blank" rel="noopener"
+      <a href="index.html#schedule"
          class="hidden sm:inline-flex items-center gap-1 text-sm font-semibold text-ink-900 hover:text-brand-600 transition">
-        신청하기 <span aria-hidden="true">→</span>
+        일정 보고 신청하기 <span aria-hidden="true">→</span>
       </a>
     </nav>
   </header>
@@ -117,9 +118,9 @@
         </p>
 
         <div class="mt-8 flex flex-col sm:flex-row gap-3">
-          <a href="https://smartstore.naver.com/easystrength101/products/9825334073" target="_blank" rel="noopener"
+          <a href="index.html#schedule"
              class="inline-flex items-center justify-center px-6 py-3.5 rounded-xl bg-brand-500 text-white font-bold text-base shadow-soft hover:bg-brand-600 active:scale-[0.99] transition">
-            신청하기
+            일정 보고 신청하기
           </a>
           <a href="#info"
              class="inline-flex items-center justify-center px-6 py-3.5 rounded-xl bg-white text-ink-900 font-semibold text-base ring-1 ring-ink-200 hover:bg-ink-100 transition">
@@ -421,7 +422,7 @@
           </div>
           <div class="py-5 sm:py-6 sm:border-b sm:border-ink-200 flex items-start justify-between gap-6">
             <dt class="text-sm font-semibold text-ink-500">일정</dt>
-            <dd class="text-right text-ink-900 font-semibold">5월 25일(월) 오후 1~4시 (3시간)</dd>
+            <dd class="text-right text-ink-900 font-semibold">예약 페이지에서 선택한 일정 (3시간)</dd>
           </div>
           <div class="py-5 sm:py-6 sm:border-b sm:border-ink-200 flex items-start justify-between gap-6">
             <dt class="text-sm font-semibold text-ink-500">가격</dt>
@@ -518,14 +519,18 @@
               시작 지점을 같이 잡아 드릴게요.
             </h2>
             <p class="mt-4 text-ink-300 max-w-xl leading-relaxed">
-              5월 25일(월) 오후 1~4시, 근력학교 고대점에서 진행됩니다.
-              <span class="text-white font-semibold">정원은 단 6명</span>, 소규모로 꼼꼼히 봐드리는 만큼 자리가 금방 마감됩니다. 망설이지 말고 먼저 잡아두세요.
+              근력학교 고대점에서 <span class="text-white font-semibold">정원 6명</span> 소규모로 진행합니다.
+              일정은 예약 페이지에서 고르고, 결제 안내 문자를 받으신 분은 아래에서 결제를 마치면 자리가 확정됩니다.
             </p>
 
             <div class="mt-8 flex flex-col sm:flex-row gap-3">
-              <a href="https://smartstore.naver.com/easystrength101/products/9825334073" target="_blank" rel="noopener"
+              <a href="index.html#schedule"
                  class="inline-flex items-center justify-center px-6 py-4 rounded-xl bg-brand-500 text-white font-bold text-base hover:bg-brand-600 active:scale-[0.99] transition">
-                네이버 스마트스토어에서 신청하기
+                일정 보고 신청하기
+              </a>
+              <a href="https://smartstore.naver.com/easystrength101/products/9825334073" target="_blank" rel="noopener"
+                 class="inline-flex items-center justify-center px-6 py-4 rounded-xl bg-white/10 text-white font-bold text-base ring-1 ring-white/30 hover:bg-white/20 active:scale-[0.99] transition">
+                결제 안내를 받으셨다면 · 네이버 스마트스토어에서 결제하기
               </a>
             </div>
           </div>
@@ -540,9 +545,10 @@
   <!-- ============================================== -->
   <footer class="border-t border-ink-200/60 bg-cream-50">
     <div class="max-w-5xl mx-auto px-5 py-10 flex items-center justify-center">
-      <p class="text-xs text-ink-400">© 2026 Kettlebell One-Day</p>
+      <p class="text-xs text-ink-400">© <span data-year>2026</span> Kettlebell One-Day</p>
     </div>
   </footer>
 
+  <script>document.querySelectorAll("[data-year]").forEach(function (el) { el.textContent = new Date(Date.now() + 9 * 3600 * 1000).getUTCFullYear(); });</script>
 </body>
 </html>

@@ -1,4 +1,5 @@
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
+import { clientIp, internalHeaders, rateLimit } from '../_shared/guard.ts';
 
 // 공개 본인 취소 엔드포인트: 이름+전화+예약ID가 모두 일치하고, 결제 완료 전 상태일 때만 취소한다.
 // 예약ID는 lookup-reservation이 본인 확인 후에만 내려주므로, lookup과 같은 신뢰 수준이다.
@@ -71,7 +72,7 @@ async function cancelScheduledMessages(reservationId: string) {
   try {
     const rows = await supabaseFetch(`message_logs?reservation_id=eq.${encodeURIComponent(reservationId)}&status=eq.scheduled&select=id,provider_message_id`);
     if (!Array.isArray(rows)) return;
-    const { url, serviceKey } = getSupabaseAdmin();
+    const { url } = getSupabaseAdmin();
     for (const row of rows) {
       const groupId = String(row.provider_message_id || '');
       let cancelled = !groupId;
@@ -79,7 +80,7 @@ async function cancelScheduledMessages(reservationId: string) {
         try {
           const res = await fetch(`${url}/functions/v1/solapi-reservations`, {
             method: 'POST',
-            headers: { 'content-type': 'application/json', apikey: serviceKey, authorization: `Bearer ${serviceKey}` },
+            headers: internalHeaders(),
             body: JSON.stringify({ cancelGroupId: groupId }),
           });
           const result = await res.json().catch(() => ({ ok: false }));
@@ -99,12 +100,12 @@ async function cancelScheduledMessages(reservationId: string) {
 
 // 취소 안내 문자(베스트 에포트 — 실패해도 취소 자체는 성공).
 async function sendCancelledSms(reservationId: string, phone: string, classLabel: string) {
-  const { url, serviceKey } = getSupabaseAdmin();
+  const { url } = getSupabaseAdmin();
   let result: Record<string, unknown> = { ok: false, error: 'send failed' };
   try {
     const response = await fetch(`${url}/functions/v1/solapi-reservations`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', apikey: serviceKey, authorization: `Bearer ${serviceKey}` },
+      headers: internalHeaders(),
       body: JSON.stringify({ messageType: 'reservation_cancelled', phone, values: { class_date: classLabel } }),
     });
     result = await response.json().catch(() => ({ ok: false, error: 'invalid solapi response' }));
@@ -132,6 +133,25 @@ async function sendCancelledSms(reservationId: string, phone: string, classLabel
   }
 }
 
+// 운영자 여석 알림(베스트 에포트) — ADMIN_PHONE 미설정이면 생략.
+async function notifyAdminSeatReleased(classId: string, classLabel: string) {
+  const adminPhone = Deno.env.get('ADMIN_PHONE') || '';
+  if (!adminPhone) return;
+  try {
+    const waiting = await supabaseFetch(`reservations?class_id=eq.${encodeURIComponent(classId)}&reservation_status=in.(applied,waitlisted)&select=id`);
+    const { url } = getSupabaseAdmin();
+    await fetch(`${url}/functions/v1/solapi-reservations`, {
+      method: 'POST',
+      headers: internalHeaders(),
+      body: JSON.stringify({
+        messageType: 'admin_seat_released',
+        phone: adminPhone,
+        values: { class_date: classLabel, waitlisted: String(Array.isArray(waiting) ? waiting.length : 0) },
+      }),
+    });
+  } catch (_) { /* best effort */ }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return jsonResponse({ ok: false, error: 'Method not allowed' }, 405);
@@ -145,6 +165,14 @@ serve(async (req) => {
     if (!applicantName) return jsonResponse({ ok: false, error: '이름을 입력해 주세요.' }, 400);
     if (!/^010\d{8}$/.test(phone)) return jsonResponse({ ok: false, error: '휴대폰 번호를 확인해 주세요.' }, 400);
     if (!reservationId) return jsonResponse({ ok: false, error: '취소할 예약을 찾을 수 없습니다.' }, 400);
+    if (!(await rateLimit(`cancel-ip:${clientIp(req)}`, 20, 3600))) {
+      return jsonResponse({ ok: false, error: '요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.' }, 429);
+    }
+
+    // 취소 전 상태 확인 — 자리를 점유하던 신청(결제 대기)이 빠지면 운영자에게 여석 알림을 보낸다.
+    const before = await supabaseFetch(`reservations?id=eq.${encodeURIComponent(reservationId)}&select=reservation_status,class_id`);
+    const wasSeatHolder = Array.isArray(before) && before[0] && before[0].reservation_status === 'payment_target';
+    const classIdBefore = Array.isArray(before) && before[0] ? String(before[0].class_id || '') : '';
 
     // 이름+전화+예약ID 일치 + 결제 완료 전(payment_status != paid, 활성 신청)일 때만 취소.
     // 조건을 WHERE에 모두 넣어, 결제 완료/취소/불참 건은 0건 업데이트로 막는다.
@@ -171,10 +199,12 @@ serve(async (req) => {
     const classLabel = formatSchedule(c.class_date, c.start_time, c.end_time);
     await cancelScheduledMessages(String(row.id));
     await sendCancelledSms(String(row.id), phone, classLabel);
+    if (wasSeatHolder && classIdBefore) await notifyAdminSeatReleased(classIdBefore, classLabel);
 
     return jsonResponse({ ok: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'unknown error';
-    return jsonResponse({ ok: false, error: message }, 500);
+    console.error('cancel-reservation failed:', message);
+    return jsonResponse({ ok: false, error: '취소 처리 중 문제가 생겼습니다. 잠시 후 다시 시도해 주세요.' }, 500);
   }
 });

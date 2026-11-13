@@ -1,7 +1,10 @@
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
+import { clientIp, rateLimit } from '../_shared/guard.ts';
 
 // 공개 예약 조회 엔드포인트: 이름 + 전화번호가 모두 일치하는 본인 신청 내역만 반환한다.
 // 개인 대기 순번·내부 메모 등은 노출하지 않고, 고객용 상태 라벨로만 보여준다.
+
+const PAYMENT_LINK = Deno.env.get('PAYMENT_LINK') || 'https://smartstore.naver.com/easystrength101/products/9825334073';
 
 const corsHeaders = {
   'access-control-allow-origin': '*',
@@ -74,7 +77,7 @@ function customerStatusLabel(key: string): string {
     case 'cancelled': return '취소됨';
     case 'no_show': return '불참 처리';
     case 'confirmed': return '예약 확정 (결제 완료)';
-    case 'payment_target': return '결제 안내 대상 — 안내 문자를 확인해 주세요';
+    case 'payment_target': return '결제 대기 — 아래 버튼에서 결제를 완료하면 확정됩니다';
     case 'waitlisted': return '대기 중 (여석이 생기면 안내드립니다)';
     default: return '신청 접수됨 (순서가 되면 안내드립니다)';
   }
@@ -91,6 +94,10 @@ serve(async (req) => {
 
     if (!applicantName) return jsonResponse({ ok: false, error: '이름을 입력해 주세요.' }, 400);
     if (!/^010\d{8}$/.test(phone)) return jsonResponse({ ok: false, error: '휴대폰 번호를 확인해 주세요. (010으로 시작하는 11자리)' }, 400);
+    // 이름·번호 대입 조회 방어: IP당 시간당 30회.
+    if (!(await rateLimit(`lookup-ip:${clientIp(req)}`, 30, 3600))) {
+      return jsonResponse({ ok: false, error: '조회 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.' }, 429);
+    }
 
     // 이름+전화가 모두 일치하는 본인 신청만 조회(공개 수업만, classes 임베드).
     const rows = await supabaseFetch(
@@ -98,6 +105,13 @@ serve(async (req) => {
       `&select=id,reservation_status,payment_status,created_at,class:classes(class_date,start_time,end_time,place,is_public,status)` +
       `&order=created_at.desc`
     );
+
+    // 결제 대기 건에는 결제 링크와 결제 기한(시간)을 함께 내려준다(문자를 잃어버린 경우 대비).
+    let deadlineHours = '24';
+    try {
+      const setting = await supabaseFetch('app_settings?key=eq.payment_deadline_hours&select=value');
+      if (Array.isArray(setting) && setting[0] && setting[0].value) deadlineHours = String(setting[0].value);
+    } catch (_) { /* 기본값 사용 */ }
 
     const list = (Array.isArray(rows) ? rows : [])
       .filter((r: Record<string, unknown>) => r.class && (r.class as Record<string, unknown>).is_public === true)
@@ -113,12 +127,15 @@ serve(async (req) => {
           created_at: r.created_at,
           // 결제 완료/취소/불참 전까지는 본인이 직접 예약을 취소할 수 있다.
           cancellable: key === 'applied' || key === 'waitlisted' || key === 'payment_target',
+          payment_url: key === 'payment_target' ? PAYMENT_LINK : null,
+          payment_deadline_hours: key === 'payment_target' ? deadlineHours : null,
         };
       });
 
     return jsonResponse({ ok: true, reservations: list });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'unknown error';
-    return jsonResponse({ ok: false, error: message }, 500);
+    console.error('lookup-reservation failed:', message);
+    return jsonResponse({ ok: false, error: '조회 중 문제가 생겼습니다. 잠시 후 다시 시도해 주세요.' }, 500);
   }
 });

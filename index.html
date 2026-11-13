@@ -9,11 +9,20 @@
   <link rel="canonical" href="https://baekstrong.github.io/productdetailpage/" />
   <meta property="og:description" content="혼자 시작하기 불안했다면, 하루 만에 기본기와 방향부터." />
   <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://baekstrong.github.io/productdetailpage/" />
+  <meta property="og:site_name" content="케틀벨 원데이 수업" />
+  <meta property="og:locale" content="ko_KR" />
+  <meta property="og:image" content="https://baekstrong.github.io/productdetailpage/assets/og-image.jpg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="theme-color" content="#0A4DB0" />
+  <link rel="icon" type="image/png" href="assets/apple-touch-icon.png" />
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
 
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.min.css" rel="stylesheet" />
+  <!-- 화면에 쓰인 글자만 내려받는 Pretendard 가변 폰트(버전 고정) — 정적 4굵기 약 3MB 대신 -->
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet" />
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="holidays.js"></script>
@@ -22,7 +31,7 @@
       theme: {
         extend: {
           fontFamily: {
-            sans: ['Pretendard', 'ui-sans-serif', 'system-ui', '-apple-system', 'sans-serif'],
+            sans: ['Pretendard Variable', 'Pretendard', 'ui-sans-serif', 'system-ui', '-apple-system', 'sans-serif'],
           },
           colors: {
             ink: {
@@ -30,7 +39,7 @@
               800: '#1D1F25',
               700: '#2B2F35',
               500: '#5B6168',
-              400: '#7C8189',
+              400: '#6B7078',
               300: '#B7BCC3',
               200: '#D3DAE3',
               100: '#F1F2F5',
@@ -59,7 +68,7 @@
 
   <style>
     html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
-    body { font-family: 'Pretendard', ui-sans-serif, system-ui, -apple-system, sans-serif; }
+    body { font-family: 'Pretendard Variable', 'Pretendard', ui-sans-serif, system-ui, -apple-system, sans-serif; }
     .break-keep { word-break: keep-all; }
 
     /* Subtle dotted background for hero */
@@ -182,7 +191,7 @@
             <div class="pt-1.5">
               <p class="font-bold text-ink-900">결제 안내</p>
               <p class="mt-1 text-sm text-ink-500 leading-relaxed">정원 내 신청이면 접수 문자에 결제 링크가 바로 함께 발송됩니다.<br>결제까지 완료되어야 수업 자리가 확정됩니다.</p>
-              <p class="mt-2 text-sm font-semibold text-brand-600">결제 완료 순으로 자리가 확정되며, 안내된 기한 내 미결제 시 신청이 취소됩니다.</p>
+              <p class="mt-2 text-sm font-semibold text-brand-600">결제 완료 순으로 자리가 확정되며, 안내 후 <span data-deadline-hours>몇</span>시간 안에 결제하지 않으면 신청이 취소됩니다.</p>
             </div>
           </li>
           <li class="relative flex gap-5 pb-8">
@@ -236,7 +245,7 @@
 
         <div data-public-calendar class="mt-10 rounded-3xl bg-cream-50 ring-1 ring-ink-200/70 p-2 sm:p-6 shadow-soft">
           <div class="flex items-center justify-between gap-3">
-            <p id="month-title" class="text-4xl sm:text-5xl font-extrabold tracking-tight text-ink-900"></p>
+            <p id="month-title" aria-live="polite" class="text-2xl sm:text-5xl font-extrabold tracking-tight text-ink-900 whitespace-nowrap"></p>
             <div class="flex items-center gap-2">
               <button type="button" data-month-prev aria-label="이전달" class="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white text-2xl font-bold text-ink-900 ring-1 ring-ink-200 hover:bg-ink-100">‹</button>
               <button type="button" data-month-today class="inline-flex h-11 items-center justify-center rounded-full bg-white px-5 text-sm font-extrabold text-ink-900 ring-1 ring-ink-200 hover:bg-ink-100">오늘</button>
@@ -254,6 +263,23 @@
           </div>
           <div id="calendar-body" class="calendar-grid mt-2"></div>
           <p id="calendar-empty" class="mt-6 text-sm text-ink-500 hidden">현재 열려 있는 예약 가능 일정이 없습니다. 새로운 일정이 곧 공개됩니다.</p>
+        </div>
+
+        <!-- 열린 일정이 없을 때: 다음 일정 오픈 알림 신청 -->
+        <div id="open-alert-box" class="hidden mt-6 rounded-3xl bg-ink-900 text-white p-6 sm:p-8">
+          <p class="text-sm font-semibold tracking-wide text-[#6AA4FF]">NEXT SCHEDULE</p>
+          <h3 class="mt-2 text-xl sm:text-2xl font-extrabold tracking-tight">다음 일정이 열리면 문자로 알려드릴게요</h3>
+          <p class="mt-2 text-sm text-ink-300 leading-relaxed">지금은 신청 가능한 수업이 없습니다. 번호를 남겨 주시면 새 일정이 열릴 때 한 번만 안내드립니다.</p>
+          <form id="open-alert-form" class="mt-5 grid gap-3 sm:grid-cols-[1fr_1.4fr_auto] sm:items-end">
+            <label class="grid gap-1 text-xs font-bold text-ink-300">이름(선택)<input name="applicant_name" autocomplete="name" class="rounded-xl border border-ink-700 bg-white px-4 py-3 text-base font-normal text-ink-900" /></label>
+            <label class="grid gap-1 text-xs font-bold text-ink-300">휴대폰 번호<input name="phone" inputmode="tel" autocomplete="tel" required placeholder="01012345678" class="rounded-xl border border-ink-700 bg-white px-4 py-3 text-base font-normal text-ink-900" /></label>
+            <label class="sm:col-span-3 sm:order-last flex items-start gap-2 text-xs text-ink-300">
+              <input type="checkbox" name="privacy_consent" required class="mt-0.5 h-4 w-4" />
+              <span>개인정보 수집·이용에 동의합니다. (휴대폰 번호는 다음 일정 안내 문자 1회 발송에만 사용하며, 안내 후 90일 이내 파기합니다)</span>
+            </label>
+            <button type="submit" class="rounded-xl bg-brand-500 px-6 py-3.5 font-bold text-white hover:bg-brand-600 transition">알림 신청</button>
+          </form>
+          <p id="open-alert-message" class="mt-3 text-sm text-[#CFE0FF]" role="status"></p>
         </div>
       </div>
     </section>
@@ -550,7 +576,7 @@
           </div>
           <div class="py-5 sm:py-6 sm:border-b sm:border-ink-200 flex items-start justify-between gap-6">
             <dt class="text-sm font-semibold text-ink-500">장소</dt>
-            <dd id="next-class-place" class="text-right text-ink-900 font-semibold">근력학교 고대점</dd>
+            <dd class="text-right text-ink-900 font-semibold"><span id="next-class-place">근력학교 고대점</span><a href="https://naver.me/xiqDtNuY" target="_blank" rel="noopener" class="mt-1 block text-sm font-semibold text-brand-600 underline underline-offset-2">네이버 지도에서 보기</a><span class="mt-1 block text-xs font-normal text-ink-500">별도 주차 공간이 없어 대중교통 이용을 권장합니다</span></dd>
           </div>
           <div class="py-5 sm:py-6 sm:border-b sm:border-ink-200 flex items-start justify-between gap-6">
             <dt class="text-sm font-semibold text-ink-500">정원</dt>
@@ -579,7 +605,7 @@
         </h2>
 
         <div class="mt-10 space-y-3">
-          <div class="rounded-2xl bg-white ring-1 ring-ink-200/70 px-6 py-5"><p class="font-semibold text-ink-900">Q. 예약 대기 신청하면 바로 결제해야 하나요?</p><p class="mt-2 text-sm text-ink-500 leading-relaxed">정원 내 신청이면 접수 문자에 결제 링크가 바로 발송되며, 안내된 기한 내 결제 완료 순으로 자리가 확정됩니다. 정원이 찬 날짜의 대기 신청은 결제 없이 무료이고, 여석이 생기면 순서대로 결제 안내를 보내드립니다.</p></div>
+          <div class="rounded-2xl bg-white ring-1 ring-ink-200/70 px-6 py-5"><p class="font-semibold text-ink-900">Q. 예약 대기 신청하면 바로 결제해야 하나요?</p><p class="mt-2 text-sm text-ink-500 leading-relaxed">정원 내 신청이면 접수 문자에 결제 링크가 바로 발송되며, 안내 후 <span data-deadline-hours>몇</span>시간 안에 결제 완료 순으로 자리가 확정됩니다. 결제 링크를 잃어버리셨다면 <a href="lookup.html" class="font-semibold text-brand-600 underline">내 예약 조회</a>에서 다시 열 수 있습니다. 정원이 찬 날짜의 대기 신청은 결제 없이 무료이고, 여석이 생기면 순서대로 결제 안내를 보내드립니다.</p></div>
           <div class="rounded-2xl bg-white ring-1 ring-ink-200/70 px-6 py-5"><p class="font-semibold text-ink-900">Q. 원하는 날짜를 선택할 수 있나요?</p><p class="mt-2 text-sm text-ink-500 leading-relaxed">네. 예약 가능 일정에서 원하는 수업 날짜를 선택해 신청할 수 있습니다. 날짜를 누르면 예약 신청 화면으로 이동합니다.</p></div>
           <div class="rounded-2xl bg-white ring-1 ring-ink-200/70 px-6 py-5"><p class="font-semibold text-ink-900">Q. 예약 가능 인원과 대기 인원은 무엇인가요?</p><p class="mt-2 text-sm text-ink-500 leading-relaxed">예약 가능 인원은 현재 신청 가능한 자리 수입니다. 대기 인원은 해당 날짜에 이미 신청 의사를 남긴 인원입니다.</p></div>
           <div class="rounded-2xl bg-white ring-1 ring-ink-200/70 px-6 py-5"><p class="font-semibold text-ink-900">Q. 여석이 생기면 어떻게 되나요?</p><p class="mt-2 text-sm text-ink-500 leading-relaxed">취소나 미결제로 여석이 생기면 대기 순서에 따라 문자로 결제 안내를 보내드립니다.</p></div>
@@ -624,11 +650,21 @@
           <label class="grid gap-1 text-sm font-bold text-ink-700">수업을 듣고 싶은 이유<textarea name="reason" rows="4" class="rounded-xl border border-ink-200 px-4 py-3 font-normal"></textarea></label>
           <label class="flex items-start gap-2 text-sm text-ink-700">
             <input type="checkbox" name="privacy_consent" required class="mt-1 h-4 w-4" />
-            <span>개인정보 수집·이용에 동의합니다. (이름·휴대폰 번호는 수업 예약 확인과 안내 문자 발송에만 사용하며, 수업 종료 후 파기합니다)</span>
+            <span>개인정보 수집·이용에 동의합니다. (이름·휴대폰 번호는 수업 예약 확인과 안내 문자 발송에만 사용하며, 수업일로부터 90일 이내 파기합니다)</span>
           </label>
-          <button type="submit" class="inline-flex items-center justify-center rounded-xl bg-brand-500 px-6 py-3.5 text-base font-bold text-white hover:bg-brand-600 transition">예약 신청하기</button>
-          <p id="reservation-submit-message" class="text-sm text-ink-500">신청 후 결제 안내는 문자로 보내드립니다.</p>
+          <button type="submit" id="reservation-submit-button" class="inline-flex items-center justify-center rounded-xl bg-brand-500 px-6 py-3.5 text-base font-bold text-white hover:bg-brand-600 transition disabled:opacity-60 disabled:cursor-wait">예약 신청하기</button>
+          <p id="reservation-submit-message" class="text-sm text-ink-500" role="status">신청 후 결제 안내는 문자로 보내드립니다.</p>
         </form>
+        <!-- 신청 완료 화면: 자동으로 닫지 않고 다음 단계를 안내 -->
+        <div id="reservation-done" class="hidden mt-6">
+          <p class="text-xl font-extrabold text-ink-900">신청이 접수되었습니다</p>
+          <p id="reservation-done-summary" class="mt-2 text-sm text-ink-700 leading-relaxed"></p>
+          <ol id="reservation-done-steps" class="mt-4 space-y-2 text-sm text-ink-700 list-decimal pl-5"></ol>
+          <div class="mt-6 grid gap-2 sm:grid-cols-2">
+            <a href="lookup.html" class="inline-flex items-center justify-center rounded-xl bg-white px-5 py-3 text-sm font-bold text-ink-900 ring-1 ring-ink-200 hover:bg-ink-100">내 예약 조회</a>
+            <button type="button" data-modal-close class="inline-flex items-center justify-center rounded-xl bg-brand-500 px-5 py-3 text-sm font-bold text-white hover:bg-brand-600">확인</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -670,7 +706,7 @@
   <!-- ============================================== -->
   <footer class="border-t border-ink-200/60 bg-cream-50">
     <div class="max-w-5xl mx-auto px-5 py-10 flex items-center justify-center">
-      <p class="text-xs text-ink-400">© 2026 Kettlebell One-Day</p>
+      <p class="text-xs text-ink-400">© <span data-year>2026</span> Kettlebell One-Day</p>
     </div>
   </footer>
 
@@ -712,16 +748,17 @@
         return item.available_count === undefined ? Math.max(0, item.capacity - item.confirmed_count) : item.available_count;
       }
 
+      // '오늘'은 접속 지역과 무관하게 한국 시간 기준.
       function todayParts() {
-        var d = new Date();
-        return { y: d.getFullYear(), m: d.getMonth(), d: d.getDate() };
+        var k = new Date(Date.now() + 9 * 3600 * 1000);
+        return { y: k.getUTCFullYear(), m: k.getUTCMonth(), d: k.getUTCDate() };
       }
 
       // 수업 시작 시각(class_date + start_time)이 이미 지났는지 — 지난 수업은 달력에서 제외해 예약을 막는다.
       function isPastClass(c) {
         var date = c.class_date || c.date, time = c.start_time;
         if (!date || !time) return false;
-        var start = new Date(date + 'T' + String(time).slice(0, 5));
+        var start = new Date(date + 'T' + String(time).slice(0, 5) + ':00+09:00');
         return !isNaN(start.getTime()) && start.getTime() < Date.now();
       }
 
@@ -743,8 +780,19 @@
       }
 
       function timeRange(item) {
-        // 모바일(좁은 칸)에서는 시작/종료를 두 줄로, sm 이상에서는 한 줄로 표시.
-        return item.end_time ? item.start_time + '<br class="sm:hidden">~' + item.end_time : item.start_time;
+        // 모바일(좁은 칸)에서는 시작 시각만, sm 이상에서는 '시작~종료'를 표시(좁은 칸 잘림 방지).
+        return item.end_time ? item.start_time + '<span class="hidden sm:inline">~' + item.end_time + '</span>' : item.start_time;
+      }
+
+      // 칸 상태 계산(달력·다음 수업 정보 공통): 남은 자리 = 빈 자리 - 이미 줄 선 인원.
+      function seatState(item) {
+        var available = availableOf(item);
+        var openSeats = Math.max(0, available - item.waitlist_count);
+        return {
+          openSeats: openSeats,
+          waiting: Math.max(0, item.waitlist_count - available),
+          reservable: openSeats > 0 && item.status !== 'closed'
+        };
       }
 
       function classAnchorHtml(item) {
@@ -763,21 +811,19 @@
             + '<span class="block text-[10px] leading-tight text-ink-400 whitespace-nowrap">' + openDateLabel(item.open_at) + '</span>'
             + '</button>';
         }
-        var available = availableOf(item);
         // 빈 자리(미확정)보다 이미 줄 선(신청) 인원이 많거나 같으면 선착순으로 꽉 찬 것 — '예약 가능' 아님.
-        var openSeats = available - item.waitlist_count;
         // 대기 인원(자리 초과분) — 칸엔 안 보이고, 신청 모달에서 "현재 N명 대기중" 안내에 쓴다.
-        var waiting = Math.max(0, item.waitlist_count - available);
-        var reservable = openSeats > 0 && item.status !== 'closed';
+        var st = seatState(item), openSeats = st.openSeats, waiting = st.waiting, reservable = st.reservable;
         var tone = reservable ? 'bg-[#0A4DB0] ring-1 ring-[#0A4DB0] hover:bg-[#083C8C]' : 'bg-[#3A3F4A] ring-1 ring-[#3A3F4A] hover:bg-[#2A2E36]';
         var timeColor = reservable ? 'text-white' : 'text-[#E4E9F0]';
         // 가능/대기 숫자를 동시에 보여주면 헷갈려서, 상태 한 줄만 표시.
         var status = reservable
           ? '<span class="block text-[10px] font-bold leading-tight text-white">예약 가능</span>'
-            + '<span class="block text-[10px] leading-tight text-[#CFE0FF] whitespace-nowrap">' + openSeats + '자리 남음</span>'
+            + '<span class="block text-[10px] leading-tight text-[#CFE0FF] whitespace-nowrap">' + openSeats + '자리<span class="hidden sm:inline"> 남음</span></span>'
           : '<span class="block text-[10px] font-bold leading-tight text-[#E4E9F0]">만석</span>'
-            + '<span class="block text-[10px] leading-tight text-[#A6ABB3] whitespace-nowrap">대기 가능</span>';
-        return '<button type="button" data-reservation-date="' + item.date + ' ' + item.start_time + '" data-class-id="' + (item.id || '') + '" data-waiting="' + (reservable ? 0 : waiting) + '"'
+            + '<span class="block text-[10px] leading-tight text-[#D3D7DD] whitespace-nowrap">대기<span class="hidden sm:inline"> 가능</span></span>';
+        var aria = koreanScheduleLabel(item) + (reservable ? ' 예약 가능, ' + openSeats + '자리 남음' : ' 만석, 대기 신청 가능');
+        return '<button type="button" aria-label="' + aria + '" data-reservation-date="' + item.date + ' ' + item.start_time + '" data-class-id="' + (item.id || '') + '" data-waiting="' + (reservable ? 0 : waiting) + '"'
           + ' class="block w-full text-left rounded-lg ' + tone + ' px-1 py-1 transition cursor-pointer overflow-hidden">'
           + '<span class="block text-[9px] sm:text-[11px] font-bold leading-tight tracking-tight ' + timeColor + '">' + timeRange(item) + '</span>'
           + status
@@ -842,15 +888,23 @@
         var todayStr = ymd(t.y, t.m, t.d);
         var dates = Object.keys(classesByDate).sort();
         var upcoming = dates.filter(function (ds) { return ds >= todayStr; });
-        var pick = upcoming[0] || dates[dates.length - 1];
+        var pick = upcoming[0]; // 다가올 일정이 없으면 지난 달을 펼치지 않고 이번 달을 보여준다.
         if (pick) { var parts = pick.split('-'); return { year: Number(parts[0]), month: Number(parts[1]) - 1 }; }
         return { year: t.y, month: t.m };
       }
 
+      function hasUpcoming() {
+        return (window.__publicClasses || []).some(function (c) { return !isPastClass(c); });
+      }
+
       function renderScheduleFromClasses(classes) {
         indexClasses(classes);
+        var upcoming = hasUpcoming();
         var empty = document.getElementById('calendar-empty');
-        if (empty) empty.classList.toggle('hidden', Object.keys(classesByDate).length > 0);
+        if (empty) empty.classList.toggle('hidden', upcoming);
+        // 열린(다가올) 일정이 없으면 다음 일정 오픈 알림 신청을 띄운다.
+        var alertBox = document.getElementById('open-alert-box');
+        if (alertBox) alertBox.classList.toggle('hidden', upcoming);
         view = defaultView();
         renderMonth();
         renderNextClassInfo();
@@ -881,11 +935,12 @@
         var next = upcoming[0];
         if (!next) {
           scheduleEl.textContent = '새 일정 오픈 준비 중';
-          if (availabilityEl) availabilityEl.textContent = '새 일정이 열리면 달력에서 신청할 수 있습니다';
+          if (availabilityEl) availabilityEl.textContent = '일정 알림을 신청하면 열릴 때 문자로 안내드립니다';
           return;
         }
         scheduleEl.textContent = koreanScheduleLabel(next);
-        if (availabilityEl) availabilityEl.textContent = '예약 가능 인원 ' + availableOf(next) + '명 · 대기 인원 ' + next.waitlist_count + '명';
+        var st = seatState(next);
+        if (availabilityEl) availabilityEl.textContent = st.reservable ? ('예약 가능 ' + st.openSeats + '자리 남음') : ('만석 · 대기 신청 가능' + (st.waiting ? ' (대기 ' + st.waiting + '명)' : ''));
         if (placeEl && next.place) placeEl.textContent = next.place;
       }
 
@@ -907,9 +962,26 @@
           err.serverMessage = result.error;
           throw err;
         }
-        return { ok: true };
+        return { ok: true, waitlisted: result.waitlisted === true };
       }
       window.submitReservationToSupabase = submitReservationToSupabase;
+
+      // 결제 기한(시간) — 운영 설정값을 안내 문구에 채운다(실패 시 '몇'시간 그대로).
+      var deadlineHours = '';
+      function loadDeadline() {
+        var url = window.SUPABASE_URL, key = window.SUPABASE_ANON_KEY;
+        if (!url || !key) return;
+        fetch(url + '/rest/v1/app_settings?key=eq.payment_deadline_hours&select=value', { headers: { apikey: key, authorization: 'Bearer ' + key } })
+          .then(function (r) { return r.ok ? r.json() : []; })
+          .then(function (rows) {
+            if (!rows || !rows[0] || !rows[0].value) return;
+            deadlineHours = String(rows[0].value);
+            document.querySelectorAll('[data-deadline-hours]').forEach(function (el) { el.textContent = deadlineHours; });
+          })
+          .catch(function () {});
+      }
+      loadDeadline();
+      document.querySelectorAll('[data-year]').forEach(function (el) { el.textContent = new Date(Date.now() + 9 * 3600 * 1000).getUTCFullYear(); });
 
       async function loadClasses() {
         var supabaseUrl = window.SUPABASE_URL || '';
@@ -920,6 +992,14 @@
         });
         if (!response.ok) throw new Error('classes load failed');
         return await response.json();
+      }
+
+      function refreshClasses() {
+        return loadClasses().then(function (classes) {
+          var keep = view;
+          renderScheduleFromClasses(classes || []);
+          if (keep) { view = keep; renderMonth(); }
+        }).catch(function () {});
       }
 
       loadClasses()
@@ -983,7 +1063,15 @@
           var message = document.getElementById('reservation-submit-message');
           var notice = document.getElementById('waitlist-notice');
           var waitCount = document.getElementById('waitlist-count');
-          if (selected) selected.textContent = date + ' 수업 예약 신청을 남겨주세요. 신청 후 결제 안내는 문자로 보내드립니다.';
+          var picked = (window.__publicClasses || []).filter(function (c) { return String(c.id) === classId; })[0];
+          var dateLabel = picked ? koreanScheduleLabel(picked) : date;
+          if (selected) selected.textContent = dateLabel + ' 수업 예약 신청을 남겨주세요. 신청 후 결제 안내는 문자로 보내드립니다.';
+          var formEl = document.getElementById('reservation-apply-form');
+          var doneEl = document.getElementById('reservation-done');
+          if (formEl) formEl.classList.remove('hidden');
+          if (doneEl) doneEl.classList.add('hidden');
+          if (selected) selected.classList.remove('hidden');
+          window.__selectedClassLabel = dateLabel;
           if (notice) {
             if (waiting > 0) {
               if (waitCount) waitCount.textContent = waiting;
@@ -1010,21 +1098,76 @@
 
       var reservationForm = document.getElementById('reservation-apply-form');
       if (reservationForm) {
+        var submitting = false;
         reservationForm.addEventListener('submit', async function (event) {
           event.preventDefault();
+          if (submitting) return; // 두 번 누름 방지
           var formData = new FormData(reservationForm);
           var payload = Object.fromEntries(formData.entries());
           delete payload.class_date;
           payload.privacy_consent = payload.privacy_consent === 'on';
           var message = document.getElementById('reservation-submit-message');
+          var button = document.getElementById('reservation-submit-button');
+          submitting = true;
+          if (button) { button.disabled = true; button.textContent = '신청 중…'; }
           try {
             if (!payload.class_id) throw new Error('class is not selected');
-            await submitReservationToSupabase(payload);
-            if (message) message.textContent = '예약 신청이 접수되었습니다. 접수 확인 문자를 보내드립니다.';
+            var result = await submitReservationToSupabase(payload);
             reservationForm.reset();
-            setTimeout(closeReservationModal, 1800);
+            showDone(result && result.waitlisted);
+            refreshClasses();
           } catch (error) {
             if (message) message.textContent = error.serverMessage || '신청 저장에 실패했습니다. 잠시 후 다시 시도해주세요.';
+          } finally {
+            submitting = false;
+            if (button) { button.disabled = false; button.textContent = '예약 신청하기'; }
+          }
+        });
+      }
+
+      // 신청 완료 화면 — 결과(선착순/대기)에 맞는 다음 단계를 보여준다. 자동으로 닫지 않는다.
+      function showDone(waitlisted) {
+        var formEl = document.getElementById('reservation-apply-form');
+        var doneEl = document.getElementById('reservation-done');
+        var summary = document.getElementById('reservation-done-summary');
+        var steps = document.getElementById('reservation-done-steps');
+        var label = window.__selectedClassLabel || '';
+        var hours = deadlineHours ? deadlineHours + '시간' : '안내된 시간';
+        var list = waitlisted
+          ? ['대기 접수 문자가 곧 도착합니다(순번 포함).', '앞 신청자 취소 등으로 자리가 나면 순서대로 결제 안내 문자를 보내드립니다.', '대기 중에는 결제하실 것이 없습니다.']
+          : ['결제 링크가 담긴 접수 문자가 곧 도착합니다.', '문자를 받은 뒤 ' + hours + ' 안에 결제를 완료하면 자리가 확정됩니다.', '문자를 못 받으셨다면 ‘내 예약 조회’에서 결제 링크를 다시 열 수 있습니다.'];
+        if (summary) summary.textContent = label + (waitlisted ? ' 수업은 정원이 차서 대기로 접수되었습니다.' : ' 수업 자리를 잡아 두었습니다. 결제까지 마쳐야 확정됩니다.');
+        if (steps) steps.innerHTML = list.map(function (t) { return '<li>' + t + '</li>'; }).join('');
+        if (formEl) formEl.classList.add('hidden');
+        if (doneEl) doneEl.classList.remove('hidden');
+        ['selected-date', 'waitlist-notice'].forEach(function (id) { var el = document.getElementById(id); if (el) el.classList.add('hidden'); });
+      }
+
+      // 다음 일정 오픈 알림 신청
+      var alertForm = document.getElementById('open-alert-form');
+      if (alertForm) {
+        var alertBusy = false;
+        alertForm.addEventListener('submit', async function (event) {
+          event.preventDefault();
+          if (alertBusy) return;
+          var msg = document.getElementById('open-alert-message');
+          var data = Object.fromEntries(new FormData(alertForm).entries());
+          var url = window.SUPABASE_URL, key = window.SUPABASE_ANON_KEY;
+          alertBusy = true;
+          try {
+            var response = await fetch(url + '/functions/v1/submit-reservation', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json', apikey: key, authorization: 'Bearer ' + key },
+              body: JSON.stringify({ action: 'open_alert', applicant_name: data.applicant_name || '', phone: data.phone || '', privacy_consent: data.privacy_consent === 'on' })
+            });
+            var result = await response.json().catch(function () { return {}; });
+            if (!response.ok || result.ok === false) throw new Error(result.error || '');
+            alertForm.reset();
+            if (msg) msg.textContent = '알림 신청이 완료되었습니다. 새 일정이 열리면 문자로 안내드릴게요.';
+          } catch (error) {
+            if (msg) msg.textContent = error.message || '신청에 실패했습니다. 잠시 후 다시 시도해 주세요.';
+          } finally {
+            alertBusy = false;
           }
         });
       }

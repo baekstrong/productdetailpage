@@ -1,4 +1,5 @@
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
+import { callRpc, clientIp, internalHeaders, rateLimit, UUID_RE } from '../_shared/guard.ts';
 
 // 공개 신청 엔드포인트: 검증 → 중복 차단 → service_role insert → 접수 문자(베스트 에포트).
 // anon 직접 insert 정책을 대체한다(요금/스팸 방지 게이트를 서버로 일원화).
@@ -83,12 +84,12 @@ function isPastClassKst(classDate: string, startTime: string): boolean {
 
 // 문자 발송 + message_logs 기록 (베스트 에포트). scheduledAt이 있으면 Solapi 예약 발송으로 등록한다.
 async function sendSmsAndLog(reservationId: string, phone: string, messageType: string, values: Record<string, string>, scheduledAt?: string) {
-  const { url, serviceKey } = getSupabaseAdmin();
+  const { url } = getSupabaseAdmin();
   let result: Record<string, unknown> = { ok: false, error: 'send failed' };
   try {
     const response = await fetch(`${url}/functions/v1/solapi-reservations`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', apikey: serviceKey, authorization: `Bearer ${serviceKey}` },
+      headers: internalHeaders(),
       body: JSON.stringify({ messageType, phone, values, scheduledAt }),
     });
     result = await response.json().catch(() => ({ ok: false, error: 'invalid solapi response' }));
@@ -118,12 +119,42 @@ async function sendSmsAndLog(reservationId: string, phone: string, messageType: 
 }
 
 
+// 다음 일정 오픈 알림 신청. 문자는 보내지 않는다(관리자가 일정을 연 뒤 '오픈 알림 발송'으로 한 번에 안내).
+async function handleOpenAlert(body: Record<string, unknown>, ip: string): Promise<Response> {
+  const name = String(body.applicant_name || '').trim().slice(0, 50);
+  const phone = String(body.phone || '').replace(/[^0-9]/g, '');
+  if (!body.privacy_consent) return jsonResponse({ ok: false, error: '개인정보 수집·이용 동의가 필요합니다.' }, 400);
+  if (!/^010\d{8}$/.test(phone)) return jsonResponse({ ok: false, error: '휴대폰 번호를 확인해 주세요. (010으로 시작하는 11자리)' }, 400);
+  if (!(await rateLimit(`alert-ip:${ip}`, 5, 3600))) {
+    return jsonResponse({ ok: false, error: '짧은 시간에 신청이 너무 많습니다. 잠시 후 다시 시도해 주세요.' }, 429);
+  }
+  try {
+    await supabaseFetch('class_open_alerts', {
+      method: 'POST',
+      headers: { prefer: 'return=minimal' },
+      body: JSON.stringify({ applicant_name: name || null, phone }),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    // 이미 알림 대기 중인 번호면 성공으로 응답(중복 안내 방지).
+    if (!(message.includes('23505') || message.includes('class_open_alerts_pending_unique'))) {
+      console.error('open_alert failed:', message);
+      return jsonResponse({ ok: false, error: '신청 처리 중 문제가 생겼습니다. 잠시 후 다시 시도해 주세요.' }, 500);
+    }
+  }
+  return jsonResponse({ ok: true });
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return jsonResponse({ ok: false, error: 'Method not allowed' }, 405);
 
   try {
     const body = await req.json().catch(() => ({}));
+    const ip = clientIp(req);
+
+    // 다음 일정 오픈 알림 신청(열린 수업이 없을 때) — 번호만 받아 두고, 관리자가 일정을 열 때 일괄 안내한다.
+    if (body.action === 'open_alert') return await handleOpenAlert(body, ip);
 
     const applicantName = String(body.applicant_name || '').trim();
     const phone = String(body.phone || '').replace(/[^0-9]/g, '');
@@ -135,7 +166,12 @@ serve(async (req) => {
     if (!consent) return jsonResponse({ ok: false, error: '개인정보 수집·이용 동의가 필요합니다.' }, 400);
     if (!applicantName || applicantName.length > 50) return jsonResponse({ ok: false, error: '이름을 확인해 주세요.' }, 400);
     if (!/^010\d{8}$/.test(phone)) return jsonResponse({ ok: false, error: '휴대폰 번호를 확인해 주세요. (010으로 시작하는 11자리)' }, 400);
-    if (!classId) return jsonResponse({ ok: false, error: '수업이 선택되지 않았습니다.' }, 400);
+    if (!classId || !UUID_RE.test(classId)) return jsonResponse({ ok: false, error: '수업이 선택되지 않았습니다.' }, 400);
+
+    // 남용(문자 폭탄·비용 공격) 방어: IP당 시간당 10건, 번호당 시간당 5건.
+    if (!(await rateLimit(`submit-ip:${ip}`, 10, 3600)) || !(await rateLimit(`submit-phone:${phone}`, 5, 3600))) {
+      return jsonResponse({ ok: false, error: '짧은 시간에 신청이 너무 많습니다. 잠시 후 다시 시도해 주세요.' }, 429);
+    }
 
     // 예약 거부(차단) 번호 검사 — 관리자가 차단한 번호는 신규 신청을 받지 않는다.
     const blockedRows = await supabaseFetch(`blocked_phones?phone=eq.${encodeURIComponent(phone)}&select=phone`);
@@ -164,42 +200,25 @@ serve(async (req) => {
       return jsonResponse({ ok: false, error: '이미 종료된 수업입니다.' }, 400);
     }
 
-    // 이번 신청이 '선착순 자리'인지 '대기'인지 먼저 판정 — 그 수업의 현재 활성 신청 수(본인 제외) 기준.
-    const activeRows = await supabaseFetch(
-      `reservations?class_id=eq.${encodeURIComponent(classId)}&reservation_status=not.in.(cancelled,no_show)&select=id`
-    );
-    const activeCount = Array.isArray(activeRows) ? activeRows.length : 0;
-    const capacity = Number(classRow.capacity || 0);
-    const willWaitlist = capacity > 0 && activeCount >= capacity; // 본인을 넣으면 정원 초과 → 대기
-
-    // 선착순 자리로 들어가는 신청만 '번호당 선착순 1건' 원칙 적용.
-    // 이미 대기가 아닌 활성 신청(applied/payment_target/confirmed)이 있으면 차단. 대기 신청은 날짜별로 무제한 허용.
-    if (!willWaitlist) {
-      const blockers = await supabaseFetch(
-        `reservations?phone=eq.${encodeURIComponent(phone)}&reservation_status=in.(applied,payment_target,confirmed)&select=id,class_id`
-      );
-      if (Array.isArray(blockers) && blockers.length > 0) {
-        const sameClass = blockers.some((b) => String(b.class_id) === classId);
-        return jsonResponse({ ok: false, error: sameClass ? SAME_CLASS_MESSAGE : SEAT_DUP_MESSAGE }, 409);
-      }
+    // 정원 판정 + 중복 차단 + insert를 DB 함수 하나(수업 행 잠금)로 처리 — 동시 신청으로 정원이 넘치지 않는다.
+    // 마감(closed) 수업은 정원이 남아도 대기로만 접수된다.
+    const outcome = await callRpc('create_reservation_atomic', {
+      p_class_id: classId,
+      p_name: applicantName,
+      p_phone: phone,
+      p_experience: experience,
+      p_reason: reason,
+    }) as Record<string, unknown> | null;
+    if (!outcome || outcome.error) {
+      const code = outcome ? String(outcome.error) : '';
+      if (code === 'same_class') return jsonResponse({ ok: false, error: SAME_CLASS_MESSAGE }, 409);
+      if (code === 'seat_dup') return jsonResponse({ ok: false, error: SEAT_DUP_MESSAGE }, 409);
+      return jsonResponse({ ok: false, error: '신청할 수 없는 수업입니다.' }, 400);
     }
-
-    // 즉시 결제 전환: 정원 내 신청은 바로 '결제 안내 중'(payment_target+sent)으로 자리를 점유하고
-    // 접수 문자에 결제 링크를 함께 보낸다. 대기는 기존처럼 무료(waitlisted).
-    const created = await supabaseFetch('reservations', {
-      method: 'POST',
-      headers: { prefer: 'return=representation' },
-      body: JSON.stringify({
-        class_id: classId,
-        applicant_name: applicantName,
-        phone,
-        kettlebell_experience: experience || null,
-        reason: reason || null,
-        reservation_status: willWaitlist ? 'waitlisted' : 'payment_target', // 신청 시점 판정을 상태에 반영
-        payment_status: willWaitlist ? 'pending' : 'sent', // 정원 내는 결제 안내 발송 상태(결제 시계 시작)
-      }),
-    });
-    const reservation = Array.isArray(created) ? created[0] : created;
+    const willWaitlist = outcome.waitlisted === true;
+    const activeCount = Number(outcome.active_count || 0);
+    const capacity = Number(outcome.capacity || 0);
+    const reservation = { id: String(outcome.id || '') };
 
     // 접수 확인 문자(베스트 에포트 — 실패해도 신청 자체는 성공으로 응답).
     const classLabel = formatSchedule(String(classRow.class_date), String(classRow.start_time), String(classRow.end_time));
@@ -216,13 +235,15 @@ serve(async (req) => {
       }
     }
 
-    return jsonResponse({ ok: true });
+    return jsonResponse({ ok: true, waitlisted: willWaitlist });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'unknown error';
     // 유니크 인덱스 위반(동시 신청 레이스)은 중복 신청과 같은 한글 안내로 응답.
     if (message.includes('23505') || message.includes('reservations_active_unique')) {
       return jsonResponse({ ok: false, error: SAME_CLASS_MESSAGE }, 409);
     }
-    return jsonResponse({ ok: false, error: message }, 500);
+    // 내부 오류 원문은 로그에만 남기고 고객에게는 일반 안내만 보낸다.
+    console.error('submit-reservation failed:', message);
+    return jsonResponse({ ok: false, error: '신청 처리 중 문제가 생겼습니다. 잠시 후 다시 시도해 주세요.' }, 500);
   }
 });

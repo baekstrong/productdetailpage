@@ -139,7 +139,10 @@ class StaticPageTests(unittest.TestCase):
     def test_checkout_page_preserves_payment_conversion_copy(self):
         html = read_page("checkout.html")
 
-        self.assertIn("네이버 스마트스토어에서 신청하기", html)
+        self.assertIn("네이버 스마트스토어에서 결제하기", html)
+        self.assertIn("index.html#schedule", html)  # 신청은 예약 페이지 경유(정원 관리)
+        self.assertNotIn("5월 25일", html)
+        self.assertNotIn("망설이지 말고", html)
         self.assertIn("https://smartstore.naver.com/easystrength101/products/9825334073", html)
         self.assertIn("케틀벨, 혼자 시작하기", html)
         self.assertIn("3시간", html)
@@ -314,7 +317,10 @@ class StaticPageTests(unittest.TestCase):
         # 공개 신청 함수: 동의·번호 검증·중복 차단·접수 문자(정원 내/만석 2분기)·service_role
         self.assertIn("privacy_consent", fn)
         self.assertIn("^010\\d{8}$", fn)
-        self.assertIn("reservation_status=not.in.(cancelled,no_show)", fn)
+        # 정원 판정·중복 차단·insert는 수업 행 잠금 DB 함수 하나로(동시 신청 정원 초과 방지)
+        self.assertIn("create_reservation_atomic", fn)
+        self.assertIn("for update", schema)
+        self.assertIn("reservation_status not in ('cancelled', 'no_show')", schema)
         self.assertIn("reservation_success", fn)
         self.assertIn("reservation_waitlist", fn)
         self.assertIn("SUPABASE_SERVICE_ROLE_KEY", fn)
@@ -347,9 +353,9 @@ class StaticPageTests(unittest.TestCase):
 
         # 중복 정책: 같은 수업은 (class_id,phone) 유니크로 차단, 다른 날짜는 '선착순 자리'만 앱에서 차단(대기는 허용).
         self.assertIn("reservations (class_id, phone)", schema)
-        self.assertIn("reservation_status=in.(applied,payment_target,confirmed)", fn)  # 선착순 blocker 조회
+        self.assertIn("reservation_status in ('applied', 'payment_target', 'confirmed')", read_page("supabase/schema.sql"))  # 선착순 blocker 조회(DB 함수)
         self.assertIn("willWaitlist", fn)                                              # 대기/선착순 판정
-        self.assertIn("'waitlisted' : 'payment_target'", fn)                           # 신청 시점 판정을 상태에 반영(즉시 결제 전환)
+        self.assertIn("'waitlisted' else 'payment_target'", read_page("supabase/schema.sql"))                           # 신청 시점 판정을 상태에 반영(즉시 결제 전환)
         # 어드민: 선착순/확정 중복만 집계(대기 제외), 배지 클릭 시 날짜·순위 상세
         self.assertIn("activeReservationsByPhone", admin)
         self.assertIn("data-dup-phone", admin)
@@ -540,7 +546,7 @@ class StaticPageTests(unittest.TestCase):
         html = read_page("index.html")
 
         # 즉시 결제 전환: 정원 내 신청은 payment_target으로 자리 점유 + 접수 문자에 결제 링크
-        self.assertIn("'waitlisted' : 'payment_target'", submit)
+        self.assertIn("'waitlisted' else 'payment_target'", read_page("supabase/schema.sql"))
         self.assertIn("PAYMENT_LINK", submit)
         self.assertIn("아래 링크에서 결제를 완료하시면 자리가 확정됩니다", solapi)
 
@@ -597,14 +603,78 @@ class StaticPageTests(unittest.TestCase):
     def test_payment_reminder_function(self):
         fn = read_page("supabase/functions/payment-reminder/index.ts")
         self.assertIn("SUPABASE_SERVICE_ROLE_KEY", fn)
-        self.assertIn("timingSafeEqual", fn)
+        self.assertIn("isInternalCall", fn)
         self.assertIn("ADMIN_PHONE", fn)
         self.assertIn("admin_payment_reminder", fn)
         self.assertIn("payment_reminder_sent_at", fn)
-        self.assertIn("applied,waitlisted,payment_target", fn)
-        self.assertIn("payment_status=neq.paid", fn)
+        self.assertIn("reservation_status=not.in.(cancelled,no_show)", fn)
+        self.assertIn("payment_target", fn)
         config = read_page("supabase/config.toml")
         self.assertIn("[functions.payment-reminder]", config)
+
+    def test_2026_11_improvements(self):
+        index = read_page("index.html")
+        lookup = read_page("lookup.html")
+        admin = read_page("admin.html")
+        submit = read_page("supabase/functions/submit-reservation/index.ts")
+        admin_fn = read_page("supabase/functions/admin-reservations/index.ts")
+        solapi = read_page("supabase/functions/solapi-reservations/index.ts")
+        lookup_fn = read_page("supabase/functions/lookup-reservation/index.ts")
+        cancel_fn = read_page("supabase/functions/cancel-reservation/index.ts")
+        guard = read_page("supabase/functions/_shared/guard.ts")
+        schema = read_page("supabase/schema.sql")
+
+        # 남용 방어: 공개 함수 요청 제한 + 발송 상한 + 관리자 로그인 잠금 + 내부 호출 비밀값
+        self.assertIn("rate_limit_hit", guard)
+        self.assertIn("INTERNAL_CALL_SECRET", guard)
+        self.assertIn("submit-ip:", submit)
+        self.assertIn("lookup-ip:", lookup_fn)
+        self.assertIn("cancel-ip:", cancel_fn)
+        self.assertIn("sms-daily", solapi)
+        self.assertIn("adminLocked", admin_fn)
+        self.assertIn("adminLocked", solapi)
+        self.assertIn("create table if not exists public.rate_events", schema)
+        # 내부 오류 원문 비노출(공개 함수)
+        self.assertNotIn("jsonResponse({ ok: false, error: message }, 500)", submit)
+        self.assertNotIn("jsonResponse({ ok: false, error: message }, 500)", lookup_fn)
+
+        # 다음 일정 오픈 알림(공개 신청 → 관리자 일괄 발송)
+        self.assertIn('id="open-alert-form"', index)
+        self.assertIn("open_alert", submit)
+        self.assertIn("class_open_alerts", schema)
+        self.assertIn("notifyOpenAlerts", admin_fn)
+        self.assertIn("class_opened", solapi)
+        self.assertIn('id="open-alert-send"', admin)
+
+        # 수업 삭제·변경 시 예약 문자 정리/재예약, 후기 요청
+        self.assertIn("rescheduled", admin_fn)
+        self.assertIn("review_request", admin_fn)
+        self.assertIn("review_request", solapi)
+
+        # 개인정보 파기 함수 + 번호 해시(이력 배지)
+        self.assertIn("purge_personal_data", schema)
+        self.assertIn("phone_hash", schema)
+        self.assertIn("historyBadgeHtml", admin)
+        self.assertIn("90일 이내 파기", index)
+        self.assertNotIn("수업 종료 후 파기합니다", index)
+
+        # 공개 페이지: 중복 제출 방지 + 완료 화면 + 공유 미리보기 + 폰트 고정
+        self.assertIn("if (submitting) return", index)
+        self.assertIn('id="reservation-done"', index)
+        self.assertIn('property="og:image"', index)
+        self.assertIn("pretendard@v1.3.9", index)
+        self.assertNotIn("fonts.googleapis.com/css2?family=Pretendard", index)
+        self.assertIn("data-deadline-hours", index)
+
+        # 조회 페이지: 결제 대기 건 결제 버튼, 옛 '1주일 전' 안내 제거
+        self.assertIn("payment_url", lookup_fn)
+        self.assertIn("네이버 스마트스토어에서 결제하기", lookup)
+        self.assertNotIn("1주일 전", lookup)
+
+        # 관리자: 기한 경과 일괄 체크 + 결제 내역 대조 + KST 시각
+        self.assertIn('id="select-overdue-button"', admin)
+        self.assertIn('id="match-payments-button"', admin)
+        self.assertIn("9 * 3600 * 1000", admin)
 
 
 if __name__ == "__main__":

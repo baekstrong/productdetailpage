@@ -1,4 +1,5 @@
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
+import { internalHeaders, isInternalCall } from '../_shared/guard.ts';
 
 // 운영자 D-7 결제 안내 리마인더 — pg_cron이 매일 1회 내부 호출(Bearer service_role).
 // 오늘+7일·미발송·미결제 신청자≥1 수업에 대해 운영자(ADMIN_PHONE)에게 문자 1통 + 발송 이력 기록.
@@ -59,11 +60,11 @@ function classLabel(dateStr: string): string {
 
 // solapi-reservations 내부 호출(Bearer service_role).
 async function sendAdminSms(phone: string, values: Record<string, string>) {
-  const { url, serviceKey } = getSupabaseAdmin();
+  const { url } = getSupabaseAdmin();
   try {
     const response = await fetch(`${url}/functions/v1/solapi-reservations`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', apikey: serviceKey, authorization: `Bearer ${serviceKey}` },
+      headers: internalHeaders(),
       body: JSON.stringify({ messageType: 'admin_payment_reminder', phone, values }),
     });
     return await response.json().catch(() => ({ ok: false, error: 'invalid solapi response' }));
@@ -77,9 +78,7 @@ serve(async (req) => {
   if (req.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405);
 
   // 인증: 내부 호출(Bearer service_role)만.
-  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
-  const authHeader = req.headers.get('authorization') || '';
-  if (!(serviceKey.length > 0 && timingSafeEqual(authHeader, `Bearer ${serviceKey}`))) {
+  if (!isInternalCall(req)) {
     return jsonResponse({ error: 'unauthorized' }, 401);
   }
 
@@ -92,16 +91,23 @@ serve(async (req) => {
     const rows = Array.isArray(classes) ? classes : [];
     let sent = 0;
     for (const c of rows) {
-      // 미결제 활성 신청자(승인 전 + 결제대상). 취소·노쇼·결제완료 제외.
-      // 결제완료는 reservation_status='confirmed' 또는 payment_status='paid' 두 경로 — paid도 제외해야 정확.
+      // 즉시 결제 체제 기준 현황: 확정 / 결제 안내 중(미결제) / 대기. 취소·노쇼 제외.
       const apps = await supabaseFetch(
-        `reservations?class_id=eq.${encodeURIComponent(String(c.id))}&reservation_status=in.(applied,waitlisted,payment_target)&payment_status=neq.paid&select=id`
+        `reservations?class_id=eq.${encodeURIComponent(String(c.id))}&reservation_status=not.in.(cancelled,no_show)&select=reservation_status,payment_status`
       );
-      const count = Array.isArray(apps) ? apps.length : 0;
-      if (count < 1) continue;
+      const list = Array.isArray(apps) ? apps : [];
+      const confirmed = list.filter((r) => r.reservation_status === 'confirmed' || r.payment_status === 'paid').length;
+      const paymentTarget = list.filter((r) => r.reservation_status === 'payment_target' && r.payment_status !== 'paid').length;
+      const waitlisted = list.filter((r) => r.reservation_status === 'waitlisted' || r.reservation_status === 'applied').length;
+      if (paymentTarget + waitlisted < 1) continue; // 정리할 게 없으면 알리지 않는다
       // 운영자 번호 미설정이면 발송·기록 안 함(기능 off — 시크릿 설정 시 동작).
       if (!adminPhone) continue;
-      await sendAdminSms(adminPhone, { class_label: classLabel(String(c.class_date)), count: String(count) });
+      await sendAdminSms(adminPhone, {
+        class_label: classLabel(String(c.class_date)),
+        confirmed: String(confirmed),
+        payment_target: String(paymentTarget),
+        waitlisted: String(waitlisted),
+      });
       // 멱등: 발송 시도한 수업은 이력 기록(중복 발송 방지).
       await supabaseFetch(`classes?id=eq.${encodeURIComponent(String(c.id))}`, {
         method: 'PATCH',

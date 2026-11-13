@@ -1,4 +1,5 @@
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
+import { adminLocked, isInternalCall as isInternal, rateLimit, recordAdminFail } from '../_shared/guard.ts';
 
 const corsHeaders = {
   'access-control-allow-origin': '*',
@@ -20,6 +21,9 @@ type MessageType =
   | 'review_video'
   | 'reservation_cancelled'
   | 'admin_payment_reminder'
+  | 'admin_seat_released'
+  | 'class_opened'
+  | 'review_request'
   | 'custom';
 
 const templates: Record<MessageType, string> = {
@@ -142,10 +146,33 @@ https://www.notion.so/easystrength/Part-2-9910eb46d55f40efad4f986986f5876d?sourc
 
 다시 수강을 원하시면 예약 페이지에서 신청해 주세요
 좋은 일정으로 다시 만나 뵙겠습니다`,
-  // 운영자(백관장)용 D-7 결제 안내 리마인더
+  // 운영자용 D-7 현황 리마인더(즉시 결제 체제 기준: 미결제·대기 현황 점검)
   admin_payment_reminder: `[케틀벨 원데이 리마인더]
 {class_label} 수업이 7일 앞입니다.
-현재 신청 {count}명 — 선착순 승인하고 결제 안내를 보내주세요.`,
+확정 {confirmed}명 · 결제 안내 중 {payment_target}명 · 대기 {waitlisted}명
+미결제 정리와 여석 안내가 필요한지 관리자 화면에서 확인해 주세요.`,
+  // 운영자용 — 고객이 조회 페이지에서 직접 취소해 자리가 빈 경우
+  admin_seat_released: `[케틀벨 원데이 알림]
+{class_date} 수업 신청자가 직접 취소했습니다.
+현재 대기 {waitlisted}명 — 여석 안내가 필요한지 확인해 주세요.`,
+  // 다음 일정 오픈 알림 — 알림 신청자에게 새 일정이 열렸음을 안내
+  class_opened: `케틀벨 원데이 수업 새 일정이 열렸습니다
+
+{class_date}
+
+정원 6명 소규모 수업이라 신청 순서대로 자리가 정해집니다
+아래 페이지에서 날짜를 확인하고 신청해 주세요
+{page_url}
+
+알림 신청해 주셔서 감사합니다(이번 안내 후 알림 신청은 종료됩니다)`,
+  // 수업 다음 날 후기 요청 — 결제 완료자에게 예약 발송
+  review_request: `어제 케틀벨 원데이 수업에 와 주셔서 감사합니다
+
+수업은 어떠셨나요?
+좋았던 점, 아쉬웠던 점을 이 문자로 편하게 회신해 주시면
+다음 수업을 준비하는 데 큰 도움이 됩니다
+
+집에서 연습하다 막히는 동작이 있으면 그것도 같이 남겨 주세요`,
   // 직접 작성 문자 — 템플릿 없이 관리자가 쓴 본문(overrideText)을 그대로 발송한다.
   custom: '',
 };
@@ -348,10 +375,17 @@ serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     // 인증: ① 서버사이드 내부 호출(Bearer service_role key) 또는 ② 관리자 비밀번호.
     // service_role key는 서버(Edge Function) 환경에서만 알 수 있으므로 내부 호출 증명이 된다.
-    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
-    const authHeader = req.headers.get('authorization') || '';
-    const isInternalCall = serviceKey.length > 0 && timingSafeEqual(authHeader, `Bearer ${serviceKey}`);
-    if (!isInternalCall) await assertAdminPassword(String(body.password || ''));
+    const isInternalCall = isInternal(req);
+    if (!isInternalCall) {
+      // 비밀번호 무차별 대입 방어: IP당 15분 10회 실패 시 잠금.
+      if (await adminLocked(req)) return jsonResponse({ ok: false, error: '로그인 시도가 너무 많습니다. 15분 후 다시 시도해 주세요.' }, 429);
+      try {
+        await assertAdminPassword(String(body.password || ''));
+      } catch (error) {
+        await recordAdminFail(req);
+        throw error;
+      }
+    }
 
     // 예약 발송 취소 요청(서버사이드 admin-reservations에서 호출).
     if (body.cancelGroupId) {
@@ -401,6 +435,11 @@ serve(async (req) => {
 
     if (!text.trim()) return jsonResponse({ error: 'text is required' }, 400);
     if (!phone) return jsonResponse({ error: 'phone is required' }, 400);
+    // 발송 상한(비용 사고 방지): 수신 번호당 하루 10건, 전체 하루 400건. 초과분은 발송하지 않고 실패로 기록된다.
+    const to = onlyDigits(phone);
+    if (!(await rateLimit(`sms-to:${to}`, 10, 86400)) || !(await rateLimit('sms-daily', 400, 86400))) {
+      return jsonResponse({ ok: false, error: '일일 발송 상한 초과로 발송하지 않았습니다', messageType, phoneMasked: maskPhone(phone), text });
+    }
     const result = await sendSolapi(phone, text, scheduledAt);
     // text를 함께 반환 — 호출자(발송 로그)가 실제 발송 본문을 message_logs.body에 남긴다.
     return jsonResponse({ ...result, messageType, phoneMasked: maskPhone(phone), text });
