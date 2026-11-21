@@ -121,7 +121,7 @@ async function notify(reservation: Record<string, unknown>, messageType: string,
 async function previewMessage(classId: string, messageType: string, videoUrl?: string) {
   const info = await classInfo(classId);
   const values: Record<string, string> = { class_date: info.label, place: info.place };
-  if (messageType === 'payment 안내' || messageType === 'seat_opened') values.payment_url = PAYMENT_LINK;
+  if (messageType === 'payment 안내' || messageType === 'seat_opened' || messageType === 'payment_final_notice') values.payment_url = PAYMENT_LINK;
   if (messageType === 'review_video') values.video_url = String(videoUrl || '').trim();
   const { url } = getSupabaseAdmin();
   const response = await fetch(`${url}/functions/v1/solapi-reservations`, {
@@ -615,7 +615,7 @@ async function cancelScheduledFollowups(reservationId: string, types: string[] =
 }
 
 // 재발송 가능한 자동 문자 종류 화이트리스트. custom은 관리자가 직접 작성한 본문을 그대로 보내는 자유 문자.
-const RESENDABLE_TYPES = new Set(['reservation_received', 'payment 안내', 'seat_opened', 'seat_secured', 'payment_completed', 'class_reminder', 'review_material', 'review_video', 'reservation_cancelled', 'custom']);
+const RESENDABLE_TYPES = new Set(['reservation_received', 'payment 안내', 'seat_opened', 'seat_secured', 'payment_completed', 'class_reminder', 'review_material', 'review_video', 'reservation_cancelled', 'payment_final_notice', 'custom']);
 
 // 현황판에서 미발송자에게 해당 종류 문자를 재발송한다.
 async function resendMessage(classId: string, messageType: string, reservationIds: string[], videoUrl?: string, messageText?: string) {
@@ -640,7 +640,7 @@ async function resendMessage(classId: string, messageType: string, reservationId
       await notify(reservation, messageType, { class_date: info.label, place: info.place }, sched.scheduledDate, messageText);
     } else {
       const values: Record<string, string> = { class_date: info.label, place: info.place };
-      if (messageType === 'payment 안내' || messageType === 'seat_opened') values.payment_url = PAYMENT_LINK;
+      if (messageType === 'payment 안내' || messageType === 'seat_opened' || messageType === 'payment_final_notice') values.payment_url = PAYMENT_LINK;
       if (messageType === 'review_video') values.video_url = videoLink;
       await notify(reservation, messageType, values, undefined, messageText);
     }

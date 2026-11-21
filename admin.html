@@ -131,6 +131,7 @@
           <button type="button" data-bulk-action="waitlist" class="rounded-lg bg-blue-100 px-3 py-2 text-sm font-bold text-blue-700">대기 처리</button>
           <button type="button" data-bulk-action="seat-opened" class="rounded-lg bg-sky-100 px-3 py-2 text-sm font-bold text-sky-700">여석 안내 (결제 링크 O)</button>
           <button type="button" data-bulk-action="seat-secured" class="rounded-lg bg-teal-100 px-3 py-2 text-sm font-bold text-teal-700">여석 안내 (결제 링크 X)</button>
+          <button type="button" id="payment-final-notice-button" class="rounded-lg bg-rose-100 px-3 py-2 text-sm font-bold text-rose-700" title="결제가 늦어지는 신청자에게 '1시간 내 미결제 시 자동 취소' 안내 문자를 보냅니다(상태 변경 없음)">⏰ 결제 독촉 (1시간)</button>
           <button type="button" data-bulk-action="payment-expired" class="rounded-lg bg-amber-100 px-3 py-2 text-sm font-bold text-amber-700">미결제 마감</button>
           <button type="button" data-bulk-action="refund" class="rounded-lg bg-fuchsia-100 px-3 py-2 text-sm font-bold text-fuchsia-700" title="스마트스토어에서 환불 승인한 뒤 누르세요 — 예약 취소 + 결제 상태 '환불' 기록 + 환불 안내 문자">환불 처리</button>
           <button type="button" data-bulk-action="cancel" class="rounded-lg bg-slate-200 px-3 py-2 text-sm font-bold text-slate-700">취소 처리</button>
@@ -799,7 +800,7 @@
 
     const SMS_TYPE_LABELS = {
       'payment 안내': '결제 안내 문자', seat_opened: '여석 안내 문자(결제 링크 O)', seat_secured: '자리 확보 문자(결제 링크 X)',
-      payment_completed: '결제 완료 문자', payment_expired: '미결제 마감 문자', payment_refunded: '환불 안내 문자', reservation_cancelled: '예약 취소 안내 문자',
+      payment_completed: '결제 완료 문자', payment_expired: '미결제 마감 문자', payment_final_notice: '결제 독촉 문자(1시간 내 미결제 시 취소)', payment_refunded: '환불 안내 문자', reservation_cancelled: '예약 취소 안내 문자',
       class_reminder: '수업 전 리마인드 문자', review_material: '수업 후 복습 자료 문자', review_video: '복습 영상 안내 문자',
       reservation_received: '예약 신청 완료 문자', custom: '직접 작성 문자',
       reservation_success: '접수 문자(정원 내·결제 링크 포함)', reservation_waitlist: '접수 문자(대기)', admin_payment_reminder: '운영자 결제 리마인더(D-7)',
@@ -939,6 +940,35 @@
         message.textContent = `선택한 ${ids.length}명에게 문자를 발송했습니다.`;
       } catch (error) {
         message.textContent = `문자 발송 실패: ${error.message}`;
+      }
+    }
+
+    // 결제 독촉 문자: 결제 안내를 받고도 아직 결제하지 않은 신청자에게만 '1시간 내 미결제 시 자동 취소' 안내를 보낸다.
+    // 상태는 바꾸지 않는다 — 1시간 뒤에도 미결제면 '미결제 마감'으로 직접 정리한다.
+    async function handlePaymentFinalNotice() {
+      const msg = document.getElementById('admin-message');
+      const ids = selectedReservationIds();
+      if (!ids.length) { window.alert('먼저 결제 독촉 문자를 보낼 신청자를 체크하세요.'); return; }
+      const targets = (adminData.reservations || []).filter((r) => ids.indexOf(r.id) !== -1
+        && (r.reservation_status === 'payment_target' || r.payment_status === 'sent')
+        && r.payment_status !== 'paid'
+        && r.reservation_status !== 'confirmed' && r.reservation_status !== 'cancelled' && r.reservation_status !== 'no_show');
+      if (!targets.length) { window.alert('결제 안내 중(미결제)인 신청자만 보낼 수 있습니다.'); return; }
+      const classIds = Array.from(new Set(targets.map((r) => r.class_id)));
+      if (classIds.length > 1) { window.alert('결제 독촉 문자는 한 수업씩 보내 주세요.'); return; }
+      const skipped = ids.length - targets.length;
+      const note = '상태는 바뀌지 않습니다. 1시간 뒤에도 미결제면 "미결제 마감"으로 직접 정리하세요.'
+        + (skipped ? ` (선택 ${ids.length}명 중 결제 안내 중이 아닌 ${skipped}명은 제외)` : '');
+      try {
+        const result = await confirmSmsBeforeSend('payment_final_notice', targets.length, undefined, note, classIds[0]);
+        if (result === null) return;
+        const messageText = (result !== SEND_TEMPLATE && result !== SEND_SILENT) ? result : undefined;
+        if (msg) msg.textContent = '결제 독촉 문자를 보내는 중입니다.';
+        await callAdminApi('resendMessage', { classId: classIds[0], messageType: 'payment_final_notice', reservationIds: targets.map((r) => r.id), messageText });
+        await loadAdminData();
+        if (msg) msg.textContent = `결제 독촉 문자를 ${targets.length}명에게 보냈습니다.`;
+      } catch (error) {
+        if (msg) msg.textContent = `결제 독촉 문자 발송 실패: ${error.message}`;
       }
     }
 
@@ -1520,6 +1550,7 @@
       button.addEventListener('click', () => applyBulkAction(button.dataset.bulkAction));
     });
     document.getElementById('custom-sms-button').addEventListener('click', handleCustomSms);
+    document.getElementById('payment-final-notice-button').addEventListener('click', handlePaymentFinalNotice);
     document.getElementById('block-phone-button').addEventListener('click', async () => {
       const message = document.getElementById('admin-message');
       const ids = selectedReservationIds();

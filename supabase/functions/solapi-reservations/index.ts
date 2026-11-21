@@ -16,6 +16,7 @@ type MessageType =
   | 'payment_completed'
   | 'payment_refunded'
   | 'payment_expired'
+  | 'payment_final_notice'
   | 'class_reminder'
   | 'review_material'
   | 'review_video'
@@ -106,6 +107,17 @@ const templates: Record<MessageType, string> = {
 결제하신 수단으로 환불이 진행되며, 카드사에 따라 며칠 걸릴 수 있습니다
 다시 수강을 원하시면 예약 페이지에서 신청해 주세요
 좋은 일정으로 다시 만나 뵙겠습니다`,
+  // 결제 지연자 최종 안내 — 결제 안내 후 결제가 늦어지는 사람에게 관리자가 수동 발송(상태 변경 없음)
+  payment_final_notice: `케틀벨 원데이 수업 결제 확인 안내드립니다
+
+수업 일정: {class_date}
+
+아직 결제가 확인되지 않았습니다
+지금부터 1시간 내에 결제가 확인되지 않으면 예약이 자동 취소되고, 자리는 다음 대기자에게 안내됩니다
+{payment_url}
+
+이미 결제하셨다면 이 문자는 넘겨 주셔도 됩니다
+수강이 어려우시면 이 문자로 회신 주세요`,
   // 미결제 마감(기한 만료) 안내 문자
   payment_expired: `케틀벨 원데이 수업 예약 안내드립니다
 
