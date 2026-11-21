@@ -23,6 +23,7 @@ type MessageType =
   | 'reservation_cancelled'
   | 'admin_payment_reminder'
   | 'admin_seat_released'
+  | 'admin_new_reservation'
   | 'class_opened'
   | 'custom';
 
@@ -166,6 +167,12 @@ https://www.notion.so/easystrength/Part-2-9910eb46d55f40efad4f986986f5876d?sourc
   admin_seat_released: `[케틀벨 원데이 알림]
 {class_date} 수업 신청자가 직접 취소했습니다.
 현재 대기 {waitlisted}명 — 여석 안내가 필요한지 확인해 주세요.`,
+  // 운영자용 — 공개 페이지에서 새 신청이 접수된 경우
+  admin_new_reservation: `[케틀벨 원데이 신청 알림]
+{class_date} 수업에 새 신청이 들어왔습니다.
+신청자: {name} ({phone_masked})
+구분: {status_label}
+현재 신청 {active}명 / 정원 {capacity}명`,
   // 다음 일정 오픈 알림 — 알림 신청자에게 새 일정이 열렸음을 안내
   class_opened: `케틀벨 원데이 수업 새 일정이 열렸습니다
 
@@ -439,8 +446,10 @@ serve(async (req) => {
     if (!text.trim()) return jsonResponse({ error: 'text is required' }, 400);
     if (!phone) return jsonResponse({ error: 'phone is required' }, 400);
     // 발송 상한(비용 사고 방지): 수신 번호당 하루 10건, 전체 하루 400건. 초과분은 발송하지 않고 실패로 기록된다.
+    // 운영자 번호(ADMIN_PHONE)는 신청 알림 등으로 하루 10건을 넘을 수 있어 번호당 상한을 100건으로 둔다.
     const to = onlyDigits(phone);
-    if (!(await rateLimit(`sms-to:${to}`, 10, 86400)) || !(await rateLimit('sms-daily', 400, 86400))) {
+    const isAdminPhone = to !== '' && to === onlyDigits(Deno.env.get('ADMIN_PHONE') || '');
+    if (!(await rateLimit(`sms-to:${to}`, isAdminPhone ? 100 : 10, 86400)) || !(await rateLimit('sms-daily', 400, 86400))) {
       return jsonResponse({ ok: false, error: '일일 발송 상한 초과로 발송하지 않았습니다', messageType, phoneMasked: maskPhone(phone), text });
     }
     const result = await sendSolapi(phone, text, scheduledAt);

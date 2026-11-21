@@ -119,6 +119,20 @@ async function sendSmsAndLog(reservationId: string, phone: string, messageType: 
 }
 
 
+// 운영자 신청 알림(베스트 에포트) — ADMIN_PHONE 미설정이면 생략. 고객 발송 이력(message_logs)에는 남기지 않는다.
+async function notifyAdminNewReservation(values: Record<string, string>) {
+  const adminPhone = Deno.env.get('ADMIN_PHONE') || '';
+  if (!adminPhone) return;
+  try {
+    const { url } = getSupabaseAdmin();
+    await fetch(`${url}/functions/v1/solapi-reservations`, {
+      method: 'POST',
+      headers: internalHeaders(),
+      body: JSON.stringify({ messageType: 'admin_new_reservation', phone: adminPhone, values }),
+    });
+  } catch (_) { /* best effort */ }
+}
+
 // 다음 일정 오픈 알림 신청. 문자는 보내지 않는다(관리자가 일정을 연 뒤 '오픈 알림 발송'으로 한 번에 안내).
 async function handleOpenAlert(body: Record<string, unknown>, ip: string): Promise<Response> {
   const name = String(body.applicant_name || '').trim().slice(0, 50);
@@ -233,6 +247,19 @@ serve(async (req) => {
         // 정원 내 접수 문자(결제 링크 포함).
         await sendSmsAndLog(String(reservation.id), phone, 'reservation_success', { class_date: classLabel, payment_url: PAYMENT_LINK });
       }
+    }
+
+    // 운영자에게 새 신청 알림 문자(고객 문자와 별개, 실패해도 신청은 성공).
+    if (reservation && reservation.id) {
+      const rank = activeCount - capacity + 1;
+      await notifyAdminNewReservation({
+        class_date: classLabel,
+        name: applicantName,
+        phone_masked: maskPhone(phone),
+        status_label: willWaitlist ? (rank > 0 ? `대기 ${rank}순위` : '대기') : '정원 내 (결제 안내 문자 발송됨)',
+        active: String(activeCount + 1),
+        capacity: String(capacity),
+      });
     }
 
     return jsonResponse({ ok: true, waitlisted: willWaitlist });
